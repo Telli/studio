@@ -1,4 +1,4 @@
-import type { ProjectFile } from "./projectFiles";
+import { classifyProjectFile, type ProjectFile } from "./projectFiles";
 
 /**
  * The checks a project's parts have been through, read from the results the
@@ -12,6 +12,9 @@ import type { ProjectFile } from "./projectFiles";
 
 const RESULT_FILE = /\.fea\.json$/i;
 
+/** A study's numbers saved beside its picture, as `.result.json` or an agent's `-result.json`. */
+const STUDY_NUMBERS = /([._-]result)?\.json$/i;
+
 /** Whether the file is a check's result the overview reads. */
 export const isCheckResultPath = (path: string) => RESULT_FILE.test(path);
 
@@ -19,13 +22,14 @@ export const isCheckResultPath = (path: string) => RESULT_FILE.test(path);
  * Whether the file is a named FEA study's numbers, beside its picture: the FEA
  * skill keeps several studies of a part as `FEA/part.bracket-load.glb` and its
  * `part.bracket-load.json` (or `part.bracket-load.result.json`, as agents on
- * text-to-cad 0.10 save `cad fea solve --json`, whose picture may be `.fea.glb`).
+ * text-to-cad 0.10 save `cad fea solve --json`, whose picture may be `.fea.glb`,
+ * or `part-load-result.json`, as agents also name it).
  * `paths` are the folder's files.
  */
 export const isNamedStudyPath = (path: string, paths: ReadonlySet<string>) =>
   /\.json$/i.test(path) &&
   !RESULT_FILE.test(path) &&
-  [".glb", ".fea.glb"].some((picture) => paths.has(path.replace(/(\.result)?\.json$/i, picture)));
+  [".glb", ".fea.glb"].some((picture) => paths.has(path.replace(STUDY_NUMBERS, picture)));
 
 /** An FEA study's analysis, in the plain word the FEA skill gives it. */
 const ANALYSIS_WORDS: Record<string, string> = {
@@ -58,6 +62,8 @@ export interface CheckResult {
   readonly issues: ReadonlyArray<CheckIssue>;
   /** When the result was written (seconds), when its file says. */
   readonly written?: number;
+  /** It ran on a copy of a part kept in a study folder, not on the part (`claimStudies`). */
+  readonly onStudyCopy?: true;
 }
 
 const STATUS_RANK: Record<CheckStatus, number> = { fix: 2, warnings: 1, ready: 0 };
@@ -132,7 +138,7 @@ export function parseCheckResult(
       : null;
   const safety = typeof summary?.safety_factor === "number" ? summary.safety_factor : null;
   const name = baseName(path);
-  const namedPicture = path.replace(/(\.result)?\.json$/i, ".fea.glb");
+  const namedPicture = path.replace(STUDY_NUMBERS, ".fea.glb");
   const folder = path
     .replaceAll("\\", "/")
     .slice(0, path.replaceAll("\\", "/").lastIndexOf("/") + 1);
@@ -141,7 +147,7 @@ export function parseCheckResult(
     model: solved
       ? baseName(text(data.glb) ?? "") === baseName(namedPicture)
         ? namedPicture
-        : path.replace(/(\.result)?\.json$/i, ".glb")
+        : path.replace(STUDY_NUMBERS, ".glb")
       : fea && picture !== null
         ? `${folder}${baseName(picture)}`
         : path.replace(fea ? /\.json$/i : /\.result\.json$/i, ".glb"),
@@ -158,6 +164,9 @@ export function parseCheckResult(
         : "Passed every check"),
     issues,
     ...(modifiedAt === undefined ? {} : { written: Date.parse(modifiedAt) / 1000 }),
+    ...(classifyProjectFile(text(data.document) ?? "")?.kind === "Result"
+      ? { onStudyCopy: true as const }
+      : {}),
   };
 }
 
@@ -204,6 +213,38 @@ export function resultsFor(part: ProjectFile, results: ReadonlyArray<CheckResult
     // A model's checks run on the STEP exported from it, named after its script.
     if (part.document !== undefined && /\.(step|stp)$/.test(named)) return stemOf(named) === stem;
     return named === name || (!named.includes(".") && named === stem);
+  });
+}
+
+/** The part a study on a copy is about: the one its name begins with, else the only model. */
+function studyOwner(
+  parts: ReadonlyArray<ProjectFile>,
+  result: CheckResult,
+): ProjectFile | undefined {
+  const copy = stemOf(result.part);
+  const named = parts
+    .filter((part) => {
+      const stem = stemOf(part.name);
+      return copy.startsWith(stem) && /[._-]/.test(copy.charAt(stem.length));
+    })
+    .toSorted((a, b) => b.name.length - a.name.length)[0];
+  if (named !== undefined) return named;
+  const models = parts.filter((part) => part.document !== undefined);
+  const candidates = models.length > 0 ? models : parts;
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+/**
+ * The results with each study on a copy (an agent's `studies/stopped-panel.step`) naming the part
+ * it is about, so the part shows the check. A copy that could be of several parts stays as it is.
+ */
+export function claimStudies(
+  parts: ReadonlyArray<ProjectFile>,
+  results: ReadonlyArray<CheckResult>,
+): CheckResult[] {
+  return results.map((result) => {
+    const owner = result.onStudyCopy === true ? studyOwner(parts, result) : undefined;
+    return owner === undefined ? result : { ...result, part: owner.document ?? owner.name };
   });
 }
 

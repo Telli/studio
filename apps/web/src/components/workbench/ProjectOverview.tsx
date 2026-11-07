@@ -21,6 +21,7 @@ import {
   type CheckResult,
   type CheckStatus,
   checkOutOfDate,
+  claimStudies,
   currentResults,
   drawingsFor,
   manufacturingFor,
@@ -445,15 +446,14 @@ export function ProjectOverview(props: {
       const files = folderFiles(folder.paths ?? [], folder.models);
       const designs = overviewParts(files);
       const made = manufacturingFor(designs, files);
-      const results = currentResults(designs, folder.results);
+      const claimed = claimStudies(designs, folder.results);
+      const results = currentResults(designs, claimed);
       const parts = designs
         .map((file) => ({
           root: folder.root,
           file,
           results: resultsFor(file, results),
-          outdated: resultsFor(file, folder.results).filter((result) =>
-            checkOutOfDate(result, file),
-          ),
+          outdated: resultsFor(file, claimed).filter((result) => checkOutOfDate(result, file)),
           drawings: drawingsFor(file, folder.paths ?? []),
           made: made.get(file.path) ?? [],
         }))

@@ -5,6 +5,7 @@ import {
   currentResults,
   drawingsFor,
   isCheckResultPath,
+  claimStudies,
   isNamedStudyPath,
   manufacturingFor,
   overviewParts,
@@ -213,6 +214,43 @@ describe("check results", () => {
       false,
       false,
     ]);
+  });
+
+  it("ties a study an agent ran on a copy back to the part", () => {
+    const folder = new Set(["studies/stopped-panel-result.json", "studies/stopped-panel.glb"]);
+    expect(isNamedStudyPath("studies/stopped-panel-result.json", folder)).toBe(true);
+    const study = (name: string) =>
+      parseCheckResult(
+        `studies/${name}-result.json`,
+        JSON.stringify({
+          document: `studies/${name}.step`,
+          glb: `studies/${name}.glb`,
+          summary: { safety_factor: 1.33 },
+          study: {},
+          findings: [],
+        }),
+      )!;
+    const stopped = study("stopped-panel");
+    expect(stopped.model).toBe("studies/stopped-panel.glb");
+    const model = (name: string) => ({
+      ...classifyProjectFile(`parts/${name}.step`)!,
+      name: `${name}.py`,
+      document: `id-${name}`,
+    });
+    const exported = classifyProjectFile("parts/case-rev-b.step")!;
+
+    // The only model takes it, whatever the copy is called; a STEP beside it is not a model.
+    expect(claimStudies([model("case"), exported], [stopped])[0]?.part).toBe("id-case");
+    // With several, it goes by name, and a copy that fits none stays unclaimed.
+    const parts = [model("hinge"), model("panel")];
+    expect(claimStudies(parts, [study("panel-tip")])[0]?.part).toBe("id-panel");
+    expect(claimStudies(parts, [stopped])[0]?.part).toBe("stopped-panel.step");
+    // A check on the part itself is left alone.
+    const own = parseCheckResult(
+      "plate.fea.json",
+      JSON.stringify({ document: "parts/plate.step", findings: [] }),
+    )!;
+    expect(claimStudies(parts, [own])).toEqual([own]);
   });
 
   it("reads a strength check whose picture keeps the solver's .fea.glb name", () => {
