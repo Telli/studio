@@ -62,7 +62,10 @@ export function StudioHomeLink(props: { readonly environmentId: EnvironmentId })
   );
 }
 
-/** Trash and Settings, at the foot of the column (`StudioHomeLink`). */
+/**
+ * Trash and Settings, at the foot of the column (`StudioHomeLink`). Settings stays plain inside
+ * Settings: its section rows, in the column above, say where the person is.
+ */
 export function StudioFootLinks() {
   const { mark, go } = usePlaces();
   return (
@@ -76,7 +79,7 @@ export function StudioFootLinks() {
       <PlaceItem
         icon={SettingsIcon}
         label="Settings"
-        marked={mark === "settings"}
+        marked={false}
         onClick={() => go("/settings")}
       />
     </SidebarMenu>

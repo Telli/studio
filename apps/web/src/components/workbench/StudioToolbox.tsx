@@ -1,5 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import { PanelRightCloseIcon, PanelRightOpenIcon } from "lucide-react";
+import { PanelRightCloseIcon } from "lucide-react";
 import {
   type ReactElement,
   type RefObject,
@@ -12,6 +12,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { observeResize } from "~/lib/observeResize";
+import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Toggle, ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -52,7 +53,7 @@ import { usePartJobs } from "./usePartJobs";
  * there for the person to send (`handToChat`). It folds to an edge of the groups' icons, as chosen
  * on this device, and on a narrow panel (`toolboxNarrowRem`: in CAD, one beside a chat) starts
  * folded so the model keeps the room; a group's icon there, in its jobs' color, opens it on that
- * group's tab, and the group it would open on is marked as the tab in front is.
+ * group's tab, and the group it would open on sits on a filled tile, as the sidebar's active row.
  */
 export function StudioToolbox(props: {
   readonly threadRef: ScopedThreadRef;
@@ -108,28 +109,18 @@ export function StudioToolbox(props: {
         className="flex w-10 shrink-0 flex-col items-center gap-2 border-l border-border py-2"
         data-studio-toolbox="folded"
       >
-        <ToolboxTip text="Open the Toolbox" side="left">
-          <Button
-            variant="ghost-muted"
-            size="icon-sm"
-            aria-label="Open the Toolbox"
-            onClick={() => setFolded(false)}
-          >
-            <PanelRightOpenIcon aria-hidden="true" />
-          </Button>
-        </ToolboxTip>
         {groups.map((group) => {
           const Icon = MENU_ICONS[group.group];
           return (
             <ToolboxTip key={group.group} text={MENU_WORDS[group.group]} side="left">
               <Toggle
-                variant="segmented-accent"
-                size="sm"
+                variant="ghost"
+                size="lg"
                 aria-label={MENU_WORDS[group.group]}
                 pressed={group.group === shown?.group}
                 onPressedChange={() => openOn(group.group)}
               >
-                <Icon aria-hidden="true" className={MENU_TINTS[group.group]} />
+                <Icon aria-hidden="true" className={cn("size-4.5", MENU_TINTS[group.group])} />
               </Toggle>
             </ToolboxTip>
           );

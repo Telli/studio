@@ -268,7 +268,11 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       isGeneralDetailPage || pathname === item.to || pathname.startsWith(`${item.to}/`);
     return (
       <SidebarMenuItem key={item.to}>
-        <SidebarMenuButton isActive={isActive} onClick={() => handleSectionClick(item.to)}>
+        <SidebarMenuButton
+          isActive={isActive}
+          aria-current={isActive ? "page" : undefined}
+          onClick={() => handleSectionClick(item.to)}
+        >
           <Icon />
           <span className="truncate">{settingsSectionLabel(item.to, item.label, engineering)}</span>
         </SidebarMenuButton>

@@ -225,7 +225,8 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   }, [closeMobileSidebar, navigateToMainApp]);
 
   return (
-    <SidebarMenu className="flex-row items-center">
+    // Back fills its row, so on a utility page the update takes a row of its own under it.
+    <SidebarMenu className={isOnUtilityPage ? undefined : "flex-row items-center"}>
       {isOnUtilityPage ? (
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>

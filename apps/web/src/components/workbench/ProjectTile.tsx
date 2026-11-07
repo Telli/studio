@@ -16,9 +16,9 @@ import { chatLabel, workspaceTitle } from "./workspaceTitle";
 /**
  * A project as Home and Projects show it: a picture of its main part (its first assembly, else
  * its first part or board), or its kind's icon until it has one; its name as the sidebar says it
- * (`workspaceTitle`); and its latest chat and when, or the chat that waits. Needs you sits in blue
- * on the picture's corner while a chat waits on the person, a star on
- * the other (shown on hover, and always once starred). With
+ * (`workspaceTitle`); and its latest chat and when, or the chat that waits, or how many do. Needs
+ * you sits in blue on the picture's corner while a chat waits on the person, the only place the
+ * tile says so; a star on the other (shown on hover, and always once starred). With
  * `onMenu`, a right-click or the "…" on hover opens its menu, as Drive's on a file (`ProjectMenu`).
  */
 export function ProjectTile(props: {
@@ -53,7 +53,7 @@ export function ProjectTile(props: {
     first === undefined
       ? (props.when ?? activity.line)
       : waiting.length === 1
-        ? `${chatLabel(first.title)} is waiting on you`
+        ? chatLabel(first.title)
         : `${waiting.length} chats are waiting on you`;
   const kind = project.template === "board" ? "Electronics" : "CAD";
   const KindIcon = KIND_ICONS[kind];
@@ -96,14 +96,7 @@ export function ProjectTile(props: {
           )}
         >
           <span className="truncate text-sm font-medium text-foreground">{name}</span>
-          <span
-            className={cn(
-              "truncate text-xs tabular-nums",
-              first === undefined ? "text-muted-foreground" : "text-info-foreground",
-            )}
-          >
-            {line}
-          </span>
+          <span className="truncate text-xs text-muted-foreground tabular-nums">{line}</span>
         </span>
       </button>
       <StarButton

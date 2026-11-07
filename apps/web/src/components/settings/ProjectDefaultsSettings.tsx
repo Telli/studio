@@ -159,7 +159,11 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   if (value) updateSettings({ defaultRuntimeMode: value });
                 }}
               >
-                <SelectTrigger size="sm" aria-label="Default permissions">
+                <SelectTrigger
+                  size="sm"
+                  className="w-full sm:w-56"
+                  aria-label="Default permissions"
+                >
                   {!mixedPermissions && (
                     <PermissionIcon className="size-3.5 shrink-0 text-muted-foreground" />
                   )}

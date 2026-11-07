@@ -15,10 +15,10 @@
 
 /** A section's label, on every page and in Settings. */
 export const MODULE_HEADING =
-  "flex items-baseline gap-2 text-xs font-medium tracking-widest text-muted-foreground uppercase";
+  "flex items-baseline gap-2 text-xs font-medium text-muted-foreground uppercase";
 
 /** Said quietly in a section's label: where its words came from, or when they were written. */
-export const MODULE_NOTE = "font-normal tracking-normal text-muted-foreground normal-case";
+export const MODULE_NOTE = "font-normal text-muted-foreground normal-case";
 
 /** A group within a section, such as Starred and Recent, or a Toolbox section's tools. */
 export const GROUP_LABEL = "text-xs font-medium text-muted-foreground";

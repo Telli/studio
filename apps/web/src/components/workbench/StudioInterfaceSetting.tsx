@@ -67,7 +67,7 @@ function StudioInterfaceRow() {
             if (next !== undefined) setStudioInterface(next);
           }}
         >
-          <SelectTrigger size="sm" className="w-full sm:w-52" aria-label="Studio interface">
+          <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Studio interface">
             <SelectValue>{LABELS[current]}</SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>

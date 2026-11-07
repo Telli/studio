@@ -486,7 +486,7 @@ function AboutVersionSection(props: { readonly textToCadVersion: string | null }
                 );
               }}
             >
-              <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Update track">
+              <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Update track">
                 <SelectValue>{HOSTED_APP_CHANNEL_LABEL}</SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -935,7 +935,7 @@ function BackgroundActivityAdvancedDialog({
               >
                 <SelectTrigger
                   size="sm"
-                  className="w-full sm:w-40"
+                  className="w-full sm:w-56"
                   aria-label="Shared background policy"
                 >
                   <SelectValue>{BACKGROUND_ACTIVITY_PROFILE_LABELS[activeProfile]}</SelectValue>
@@ -1332,7 +1332,7 @@ export function AppearanceSettingsPanel() {
               >
                 <SelectTrigger
                   size="sm"
-                  className="w-full sm:w-40"
+                  className="w-full sm:w-56"
                   aria-label="Environment identification"
                 >
                   <SelectValue>
@@ -1365,7 +1365,7 @@ export function AppearanceSettingsPanel() {
             ) : null
           }
           control={
-            <div className="w-full sm:w-40">
+            <div className="w-full sm:w-56">
               <Select
                 value={settings.diffColorScheme}
                 onValueChange={(value) => {
@@ -1438,7 +1438,7 @@ export function AppearanceSettingsPanel() {
             ) : null
           }
           control={
-            <div className="w-full sm:w-40">
+            <div className="w-full sm:w-56">
               <Select
                 value={settings.chatWidth}
                 onValueChange={(value) => {
@@ -2342,7 +2342,7 @@ export function GeneralSettingsPanel() {
                 }
               }}
             >
-              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Project order">
+              <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Project order">
                 <SelectValue>
                   {SIDEBAR_PROJECT_SORT_ORDER_LABELS[settings.sidebarProjectSortOrder]}
                 </SelectValue>
@@ -2543,7 +2543,7 @@ export function GeneralSettingsPanel() {
                 }
               }}
             >
-              <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Timestamp format">
+              <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Timestamp format">
                 <SelectValue>{TIMESTAMP_FORMAT_LABELS[settings.timestampFormat]}</SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -2659,7 +2659,7 @@ export function GeneralSettingsPanel() {
             >
               <SelectTrigger
                 size="sm"
-                className="w-full sm:w-40"
+                className="w-full sm:w-56"
                 aria-label="Default diff file state"
               >
                 <SelectValue>{settings.diffFilesCollapsed ? "Collapsed" : "Expanded"}</SelectValue>
@@ -2695,7 +2695,7 @@ export function GeneralSettingsPanel() {
                 }
               }}
             >
-              <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Diff layout">
+              <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Diff layout">
                 <SelectValue>{DIFF_LAYOUT_LABELS[settings.diffLayout]}</SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -2837,11 +2837,7 @@ export function GeneralSettingsPanel() {
                 if (option) updateSettings({ sendShortcut: option.value });
               }}
             >
-              <SelectTrigger
-                size="sm"
-                className="w-auto min-w-0 max-w-full"
-                aria-label="Send shortcut"
-              >
+              <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Send shortcut">
                 <SelectValue>
                   {
                     sendShortcutOptions.find((option) => option.value === settings.sendShortcut)
@@ -2892,7 +2888,7 @@ export function GeneralSettingsPanel() {
                 }
               }}
             >
-              <SelectTrigger size="sm" className="w-auto min-w-0" aria-label="Follow-up behavior">
+              <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Follow-up behavior">
                 <SelectValue>
                   {settings.followUpBehavior === "queue" ? "Queue" : "Steer"}
                 </SelectValue>
@@ -3015,7 +3011,7 @@ export function GeneralSettingsPanel() {
               >
                 <SelectTrigger
                   size="sm"
-                  className="w-full sm:w-40"
+                  className="w-full sm:w-56"
                   aria-label="Background activity profile"
                 >
                   <SelectValue>
@@ -3237,7 +3233,7 @@ export function GeneralSettingsPanel() {
               >
                 <SelectTrigger
                   size="sm"
-                  className="w-full sm:w-40"
+                  className="w-full sm:w-56"
                   aria-label="Quit shortcut behavior"
                 >
                   <SelectValue>{QUIT_CONFIRMATION_MODE_LABELS[settings.confirmQuit]}</SelectValue>
