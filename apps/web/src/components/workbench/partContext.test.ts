@@ -162,9 +162,10 @@ describe("the engine's document", () => {
     })),
   });
 
-  it("is an assembly when its tree has components, one placed or many", () => {
+  it("is an assembly when more than one part is placed, as the engine counts", () => {
     expect(readDocumentKind(structure(0, [null]))).toBe("part");
-    expect(readDocumentKind(structure(1, [null]))).toBe("assembly");
+    // A model of one solid: the engine gives the root that solid as its one child.
+    expect(readDocumentKind(structure(1, [null]))).toBe("part");
     expect(readDocumentKind(structure(3, [null, null]))).toBe("assembly");
     expect(readDocumentKind(null)).toBeNull();
     expect(readDocumentName(structure(0, [null]))).toBe("rig");

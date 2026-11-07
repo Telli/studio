@@ -160,13 +160,14 @@ export function documentApi(document: { readonly id: string; readonly kind: stri
 }
 
 /**
- * A document's structure (`/api/v1/documents/<kind>/<id>/structure`) as a part or an assembly: an assembly's tree has
- * children (its components, placed), a part's root is the part itself.
+ * A document's structure (`/api/v1/documents/<kind>/<id>/structure`) as a part or an assembly: more
+ * than one part placed, as the engine counts them (`folder_models.py`). A model of one solid has that
+ * solid as its root's one child, so a child alone does not make an assembly.
  */
 export function readDocumentKind(structure: unknown): "part" | "assembly" | null {
   if (!isRecord(structure) || !isRecord(structure.tree)) return null;
-  const { children } = structure.tree;
-  return Array.isArray(children) && children.length > 0 ? "assembly" : "part";
+  const { instances } = structure;
+  return Array.isArray(instances) && instances.length > 1 ? "assembly" : "part";
 }
 
 /** The name the engine gives a document: a model's its function's, a file's its own. */
