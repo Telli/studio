@@ -721,7 +721,8 @@ export function ThemeLibrary({
   );
 
   const renderModeTiles = () => (
-    <div aria-label="Appearance mode" className="grid w-full grid-cols-3 gap-3" role="group">
+    // The same gap as `renderPairGrid`, so the tiles' edges line up with the theme cards under them.
+    <div aria-label="Appearance mode" className="grid w-full grid-cols-3 gap-2" role="group">
       {(["system", "light", "dark"] as const).map((mode) => {
         const isActive = appearanceMode === mode;
         return (
