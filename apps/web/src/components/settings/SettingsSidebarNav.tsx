@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
+import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import {
@@ -59,6 +60,7 @@ import {
   useEngineeringInterface,
 } from "../workbench/studioInterface";
 import { settingsNavGroups } from "../workbench/engineeringSettings";
+import { MODULE_HEADING } from "../workbench/studioLayout";
 
 const SnapShotIcon = createLucideIcon("snap-shot", [
   [
@@ -377,7 +379,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 <SidebarMenuItem>
                   <h3
                     id="settings-nav-advanced"
-                    className="flex h-8 items-center px-2 text-xs font-semibold text-sidebar-muted-foreground/75"
+                    className={cn(MODULE_HEADING, "h-8 items-center px-2")}
                   >
                     {ADVANCED_SETTINGS_LABEL}
                   </h3>

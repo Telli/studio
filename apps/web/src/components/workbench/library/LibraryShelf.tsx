@@ -1,11 +1,14 @@
 import type { LucideIcon } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import { type CSSProperties, Fragment, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 import { MODULE_HEADING } from "../studioLayout";
 
 /** Columns of covers, by the width of the page's `@container`: one rule for every shelf. */
-const SHELF_COLUMNS = "grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-4 @4xl:grid-cols-5";
+const SHELF_COLUMNS = "grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-4 @4xl:grid-cols-6";
+
+/** How many columns `SHELF_COLUMNS` comes to, at each of its widths. */
+const COLUMN_COUNTS = [2, 3, 4, 6] as const;
 
 /** A shelf's covers across the page's columns. */
 const SHELF_ROW = `grid gap-3 ${SHELF_COLUMNS}`;
@@ -23,6 +26,13 @@ const SHORT_SHELVES: Readonly<
   1: { span: "col-span-1", row: "grid grid-cols-1 gap-3" },
   2: { span: "col-span-2", row: "grid grid-cols-2 gap-3" },
 };
+
+/**
+ * The last short shelf, out to the end of its row by the spans `shortRowEnd` sets, so the row ends
+ * on a rule and not a hole. Subgrid keeps its covers on the page's tracks, however wide it spans.
+ */
+const ROW_END_SHELF =
+  "grid grid-cols-subgrid content-start gap-y-3 col-span-(--span-of-2) @xl:col-span-(--span-of-3) @3xl:col-span-(--span-of-4) @4xl:col-span-(--span-of-6)";
 
 /** A shelf the page lists: what its index and its heading both show. */
 export interface Shelf {
@@ -53,6 +63,32 @@ export function gatherShortShelves<T>(
   return [...long.slice(0, longBefore), ...shelves.filter(isShort), ...long.slice(longBefore)];
 }
 
+/**
+ * The last short shelf and the columns left on its row at each of `COLUMN_COUNTS`, as `ROW_END_SHELF`
+ * reads them. Short shelves fill a row left to right and wrap whole, as the grid places them.
+ */
+export function shortRowEnd<T>(
+  shelves: ReadonlyArray<T>,
+  tiles: (shelf: T) => number,
+): { readonly shelf: T; readonly spans: CSSProperties } | null {
+  const short = shelves.filter((shelf) => SHORT_SHELVES[tiles(shelf)] !== undefined);
+  const last = short.at(-1);
+  if (last === undefined) return null;
+  const spanOf = (columns: number) => {
+    const taken = short.slice(0, -1).reduce((used, shelf) => {
+      const fits = used + tiles(shelf) <= columns;
+      return fits ? used + tiles(shelf) : tiles(shelf);
+    }, 0);
+    return taken + tiles(last) <= columns ? columns - taken : columns;
+  };
+  return {
+    shelf: last,
+    spans: Object.fromEntries(
+      COLUMN_COUNTS.map((columns) => [`--span-of-${columns}`, spanOf(columns)]),
+    ) as CSSProperties,
+  };
+}
+
 /** One shelf: its title in its hue over a line, then its covers, always open. */
 export function LibraryShelf(props: {
   readonly shelf: Shelf;
@@ -60,26 +96,53 @@ export function LibraryShelf(props: {
   readonly tiles: number;
   /** A line under the title. */
   readonly note?: string;
+  /** Set on the last short shelf: the columns left on its row (`shortRowEnd`). */
+  readonly rowEnd?: CSSProperties | undefined;
   readonly children: ReactNode;
 }) {
-  const { shelf } = props;
+  const { shelf, rowEnd } = props;
   const Icon = shelf.icon;
   const short = SHORT_SHELVES[props.tiles];
   return (
     <section
       id={shelfAnchor(shelf.key)}
       aria-label={shelf.title}
-      className={cn("flex min-w-0 scroll-mt-6 flex-col gap-3", short?.span ?? "col-span-full")}
+      style={rowEnd}
+      className={cn(
+        "min-w-0 scroll-mt-6",
+        rowEnd === undefined
+          ? ["flex flex-col gap-3", short?.span ?? "col-span-full"]
+          : ROW_END_SHELF,
+      )}
     >
-      <h2 className={cn(MODULE_HEADING, "items-center border-b border-border pb-2")}>
+      <h2
+        className={cn(
+          MODULE_HEADING,
+          "items-center border-b border-border pb-2",
+          rowEnd === undefined ? null : "col-span-full",
+        )}
+      >
         <Icon aria-hidden="true" className={cn("size-4 shrink-0", shelf.tint)} />
         <span className="truncate">{shelf.title}</span>
         <span className="tabular-nums">{shelf.count}</span>
       </h2>
       {props.note === undefined ? null : (
-        <p className="text-sm text-muted-foreground">{props.note}</p>
+        <p
+          className={cn(
+            "text-sm text-muted-foreground",
+            rowEnd === undefined ? null : "col-span-full",
+          )}
+        >
+          {props.note}
+        </p>
       )}
-      <div className={short?.row ?? SHELF_ROW}>{props.children}</div>
+      <div
+        className={
+          rowEnd === undefined ? (short?.row ?? SHELF_ROW) : "col-span-full grid grid-cols-subgrid"
+        }
+      >
+        {props.children}
+      </div>
     </section>
   );
 }

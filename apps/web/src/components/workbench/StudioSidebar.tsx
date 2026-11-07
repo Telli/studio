@@ -37,6 +37,7 @@ import {
   type SidebarProject,
   sidebarProjects,
 } from "./sidebarProjects";
+import { MODULE_HEADING } from "./studioLayout";
 import { StudioFootLinks, StudioHomeLink } from "./StudioNavLinks";
 import { studioNavSection } from "./studioNav";
 import { useOpenChat } from "./useOpenChat";
@@ -331,7 +332,7 @@ function ProjectsList(props: { readonly environmentId: EnvironmentId }) {
     <SidebarGroup aria-label="Projects">
       <div className="flex flex-col">
         <div className="flex h-7 items-center ps-(--sidebar-row-content-inset)">
-          <h2 className={headingClass}>Projects</h2>
+          <h2 className={MODULE_HEADING}>Projects</h2>
         </div>
         {list === null ? null : entries.length === 0 ? (
           <p className={emptyClass}>No projects yet. Start one from Home.</p>

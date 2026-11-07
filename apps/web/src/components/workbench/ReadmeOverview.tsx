@@ -247,8 +247,8 @@ function ReadmeBlocks(props: {
 }
 
 /**
- * What the project is, folded to about four lines with Show all where there is more, so the page
- * stays as short as its picture. Typing in it, or the first README coming in, shows it whole.
+ * What the project is, folded to two lines with Show all where there is more, so the page stays as
+ * short as its picture. Typing in it, or the first README coming in, shows it whole.
  */
 function FoldedWords(props: { readonly children: ReactNode }) {
   const writingIn = useContext(WritingIn);
@@ -269,7 +269,7 @@ function FoldedWords(props: { readonly children: ReactNode }) {
         ref={words}
         className={cn(
           "max-w-[75ch] text-sm leading-relaxed whitespace-pre-line text-foreground",
-          folded && "line-clamp-4 focus-within:line-clamp-none",
+          folded && "line-clamp-2 focus-within:line-clamp-none",
         )}
       >
         {props.children}
@@ -283,11 +283,11 @@ function FoldedWords(props: { readonly children: ReactNode }) {
 
 /**
  * The top of a project's Overview in the engineering interface: its README, read as an engineer
- * reads one. What it is (the brief's purpose until the README says), the decisions made so far,
- * each with when and whether it was asked of the agent or made by hand (a long list folded to its
- * heading until opened), then every other section the README has, Open actions first (`readmeRows`),
- * each folded to its heading until opened, a dated heading with its date quiet beside its title, so
- * the page is as short as the project's picture and the parts stay in view. The agent keeps the README
+ * reads one. Every section the README has, Open actions first (`readmeRows`), each folded to its
+ * heading until opened, a dated heading with its date quiet beside its title, then What it is (the
+ * brief's purpose until the README says) and the decisions made so far, each with when and whether
+ * it was asked of the agent or made by hand (a long list is one of the rows), so the page is as
+ * short as the project's picture and the parts stay in view. The agent keeps the README
  * as it works (`studioProjectContext`); the person types into it where it reads (`Typed`), with no
  * Edit button.
  */
@@ -415,6 +415,23 @@ export function ReadmeOverview(props: {
         data-document-editable=""
         className="flex flex-col gap-6"
       >
+        {!longDecisions && sections.more.length === 0 ? null : (
+          <div className="flex flex-col gap-1">
+            {rows.first.map(row)}
+            {longDecisions ? (
+              <OverviewModule
+                title="Decisions"
+                count={sections.decisions.length}
+                folded={!writingIn && !opened.includes("Decisions")}
+                onFold={() => toggleSection("Decisions")}
+                row
+              >
+                {decisions}
+              </OverviewModule>
+            ) : null}
+            {rows.rest.map(row)}
+          </div>
+        )}
         <div className={SECTION_STACK}>
           <h2 className={MODULE_HEADING}>
             What it is
@@ -438,23 +455,6 @@ export function ReadmeOverview(props: {
           <div className={SECTION_STACK}>
             <h2 className={MODULE_HEADING}>Decisions</h2>
             {decisions}
-          </div>
-        )}
-        {!longDecisions && sections.more.length === 0 ? null : (
-          <div className="flex flex-col gap-1">
-            {rows.first.map(row)}
-            {longDecisions ? (
-              <OverviewModule
-                title="Decisions"
-                count={sections.decisions.length}
-                folded={!writingIn && !opened.includes("Decisions")}
-                onFold={() => toggleSection("Decisions")}
-                row
-              >
-                {decisions}
-              </OverviewModule>
-            ) : null}
-            {rows.rest.map(row)}
           </div>
         )}
         <p className="text-xs text-muted-foreground">

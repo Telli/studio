@@ -444,8 +444,12 @@ export function SettingsRow({
           : customized
             ? { state: "environment", summary: "Set on the environment" }
             : { state: "default", summary: "Built-in default" };
+  // A row at its built-in default has nothing to trace, so the title stays bare.
   const renderedInheritance =
-    context && serverScoped && settingKeys.length > 0 ? (
+    context &&
+    serverScoped &&
+    settingKeys.length > 0 &&
+    (inheritance.state !== "default" || overridingProjects.length > 0) ? (
       <SettingInheritance
         state={inheritance.state}
         summary={inheritance.summary}

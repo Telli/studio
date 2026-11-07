@@ -41,6 +41,7 @@ import { LibraryCard } from "./LibraryCard";
 import { LibraryPicture } from "./LibraryPicture";
 import {
   gatherShortShelves,
+  shortRowEnd,
   LibraryShelf,
   SHELF_GRID,
   shelfAnchor,
@@ -256,6 +257,9 @@ function LibraryContent(props: {
     if (top < 0 || top > window.innerHeight / 2) anchor.scrollIntoView({ block: "start" });
   }, [search.group]);
 
+  const placed = gatherShortShelves(shelves, tilesOn);
+  const rowEnd = shortRowEnd(placed, tilesOn);
+
   return (
     <ChatPage
       title="Toolbox"
@@ -282,8 +286,13 @@ function LibraryContent(props: {
       ) : null}
       <div className="@container min-w-0">
         <div className={SHELF_GRID}>
-          {gatherShortShelves(shelves, tilesOn).map((group) => (
-            <LibraryShelf key={group.key} shelf={group} tiles={tilesOn(group)}>
+          {placed.map((group) => (
+            <LibraryShelf
+              key={group.key}
+              shelf={group}
+              tiles={tilesOn(group)}
+              rowEnd={group === rowEnd?.shelf ? rowEnd.spans : undefined}
+            >
               {group === mySkills ? (
                 <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
               ) : null}

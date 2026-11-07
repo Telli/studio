@@ -1,5 +1,7 @@
 import type { ReactNode, Ref } from "react";
 
+import { cn } from "~/lib/utils";
+
 /** The tags a card names, whole; the rest are counted, so its line fits a tile without cutting one. */
 const TAGS_SHOWN = 2;
 
@@ -39,7 +41,13 @@ export function LibraryCard({
       <span aria-hidden="true" className="flex flex-col">
         {props.picture}
       </span>
-      <span className="flex min-w-0 flex-col gap-1 p-3">
+      {/* A Toolbox cover keeps room for a name and blurb of two lines each: one tile size. */}
+      <span
+        className={cn(
+          "flex min-w-0 flex-col gap-1 p-3",
+          props.tags === undefined ? "min-h-25" : null,
+        )}
+      >
         <span className="line-clamp-2 text-sm font-medium text-foreground">{props.name}</span>
         {props.blurb === undefined ? null : (
           <span className="line-clamp-2 h-[2lh] text-xs text-muted-foreground">{props.blurb}</span>
