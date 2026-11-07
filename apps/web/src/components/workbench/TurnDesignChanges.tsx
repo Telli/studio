@@ -8,6 +8,7 @@ import { FILE_ICONS, fileIconKey, fileTint } from "./kinds";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showOverview } from "./overviewPanel";
 import { useEngineeringInterface } from "./studioInterface";
+import { classifyProjectFile } from "./projectFiles";
 import { useFolderModels } from "./useFolderModels";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { useVersionRequestStore } from "./useVersions";
@@ -78,7 +79,11 @@ function DesignChanges(props: {
   const workspace = useOpenWorkspaceStore((state) => state.workspace?.folder ?? "");
   const models = useFolderModels(threadRef.environmentId, workspace);
   const compares = (change: DesignChange) =>
-    checkpointRef !== null && change.open !== null && VERSIONED.test(change.open);
+    checkpointRef !== null &&
+    change.open !== null &&
+    VERSIONED.test(change.open) &&
+    // A study's copy of a part has no Versions of its own, so it opens as itself.
+    classifyProjectFile(change.open)?.kind !== "Result";
   // A changed part shows what changed in it, in the Overview's Versions, at this turn's version.
   const showChange = (change: DesignChange) => {
     // A part whose only change is its script opens as the model the script makes.
