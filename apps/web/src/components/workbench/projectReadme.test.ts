@@ -10,7 +10,6 @@ import {
   readmeSections,
   type ReadmeWriteIn,
   replaceReadmeText,
-  scribblePath,
   writtenWordDelays,
 } from "./projectReadme";
 
@@ -235,12 +234,6 @@ describe("a new project's README coming in", () => {
   it("paces words as writing, and a long README within the same time", () => {
     expect(writtenWordDelays(10)(4)).toBe(180);
     expect(writtenWordDelays(600)(599)).toBeLessThanOrEqual(1800);
-  });
-
-  it("draws one unbroken line, the same for the same seed", () => {
-    expect(scribblePath(120, 1)).toBe(scribblePath(120, 1));
-    expect(scribblePath(120, 1)).not.toBe(scribblePath(120, 2));
-    expect(scribblePath(120, 1).match(/M/g)).toHaveLength(1);
   });
 });
 

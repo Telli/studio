@@ -20,6 +20,7 @@ import {
   useProjectFileQuery,
 } from "../files/projectFilesQueryState";
 import { useFileSaveCoordinator } from "../files/useFileSaveCoordinator";
+import { Skeleton } from "../ui/skeleton";
 import { OverviewModule, ShowAll, useFoldedModules } from "./OverviewModules";
 import { MODULE_HEADING, MODULE_NOTE, SECTION_STACK } from "./studioLayout";
 import {
@@ -33,7 +34,6 @@ import {
   type ReadmeSection,
   readmeSections,
   replaceReadmeText,
-  scribblePath,
   useReadmeWriteIn,
   writtenWordDelays,
 } from "./projectReadme";
@@ -92,26 +92,15 @@ function ReadmeText(props: { readonly text: string; readonly onOpenPath: (path: 
   });
 }
 
-const SCRIBBLES = [scribblePath(312, 1), scribblePath(276, 2), scribblePath(168, 3)];
-
-/** A new project's Overview while its first chat writes it: lines of writing going down the page. */
+/** A new project's Overview while its first chat writes it: Studio's loading bars, then its words. */
 function WritingOverview() {
   return (
-    <div ref={observeVisibleAnimation} role="status" className="flex flex-col gap-2">
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 320 54"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="readme-writing w-full max-w-80 text-muted-foreground"
-      >
-        {SCRIBBLES.map((path, line) => (
-          <path key={path} d={path} pathLength={1} transform={`translate(0 ${line * 18})`} />
-        ))}
-      </svg>
+    <div ref={observeVisibleAnimation} role="status" className="flex max-w-80 flex-col gap-2">
+      <div aria-hidden="true" className="flex flex-col gap-2">
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-11/12" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
       <p className="text-sm text-muted-foreground">
         <span className="live-tool-shine">Writing the overview</span>
       </p>

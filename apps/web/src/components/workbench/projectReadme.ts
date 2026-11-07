@@ -299,23 +299,3 @@ export function useReadmeWriteIn(input: {
     writingIn: next.first !== null && next.first === written,
   };
 }
-
-/**
- * A line of handwriting as one unbroken SVG path, `width` long: the same line for the same seed.
- * One path because a stroke's dashes start again at each pen lift, and the line draws by its dash.
- */
-export function scribblePath(width: number, seed: number): string {
-  let state = seed * 7919;
-  const next = (below: number) => {
-    state = (state * 1103 + 12345) % 65536;
-    return state % below;
-  };
-  let path = "M2 8";
-  for (let x = 2, up = true; x < width; up = !up) {
-    const step = 5 + next(5);
-    const height = 3 + next(5);
-    path += `q${step / 2} ${up ? -height : height} ${step} ${next(3) - 1}`;
-    x += step;
-  }
-  return path;
-}
