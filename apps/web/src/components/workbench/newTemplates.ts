@@ -81,7 +81,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "drawing",
     discipline: "CAD",
-    label: "Drawing",
+    label: "Engineering drawing",
     description: "A dimensioned engineering drawing of a part.",
     skill: "engineering-drawing",
     source: "from-part",
@@ -91,7 +91,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "strength-study",
     discipline: "Analysis",
-    label: "Strength study",
+    label: "Strength under load",
     description: "Stress and deflection of a part under its working load.",
     skill: "fea",
     source: "from-part",
@@ -101,7 +101,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "cam-job",
     discipline: "Manufacturing",
-    label: "CAM job",
+    label: "G-code for CNC",
     description: "Toolpaths and G-code for a 3-axis mill or router.",
     skill: "cam",
     source: "from-part",
@@ -111,7 +111,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "print",
     discipline: "Manufacturing",
-    label: "3D print",
+    label: "Slice for FDM",
     description: "Sliced G-code for an FDM printer, checked before it prints.",
     skill: "gcode",
     source: "from-part",
@@ -121,7 +121,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "cut-file",
     discipline: "Manufacturing",
-    label: "Cut file",
+    label: "Cut-ready DXF",
     description: "A DXF for laser, waterjet or plasma cutting.",
     skill: "dxf",
     source: "from-part",

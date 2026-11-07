@@ -46,7 +46,7 @@ describe("new templates", () => {
       "fmea",
       "design-review",
     ]);
-    expect(onWith(["fea", "cam"]).map((entry) => entry.label)).toContain("Strength study");
+    expect(onWith(["fea", "cam"]).map((entry) => entry.label)).toContain("Strength under load");
     expect(onWith(["cad", "work-instructions"]).map((entry) => entry.id)).toContain("instructions");
   });
 

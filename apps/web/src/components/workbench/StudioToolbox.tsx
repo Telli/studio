@@ -198,7 +198,7 @@ export function StudioToolbox(props: {
         <div className="flex flex-col gap-3 p-3">
           {part === null ? (
             <p className="text-xs text-muted-foreground">
-              The jobs are for a part. Make one in the chat, or import one, to see them.
+              The Toolbox works on a part you already have. Start one with New, or import one.
             </p>
           ) : jobs.status === "loading" ? (
             <p className="text-xs text-muted-foreground">Loading jobs…</p>
