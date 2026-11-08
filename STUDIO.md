@@ -291,7 +291,7 @@ Source beside the pinned Project tab for the explorer. Code shows T3 Code's surf
 `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choice for `brand/theme.css`.
 
 Settings in Engineering leave out what a programmer sets (`CODE_SETTINGS_ROWS` in
-`components/workbench/engineeringSettings.ts`): the code font, agent update checks, response
+`components/workbench/engineeringSettings.ts`): the code font, response
 streaming, the rich text composer, the send shortcut, follow-up behaviour, glass opacity and
 contrast, a project's Workspace and Checkouts. Hiding changes nothing stored: each keeps its value
 and default, and Engineering with code and Code show them all (Settings, Advanced, Interface is
@@ -647,8 +647,10 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   file, line and words the engine reports (the call into a helper, where the helper raised), and
   nothing marked otherwise, and no timeline along the bottom: the tree is the one history, with its
   rollback bar; the sketch tools as SolidWorks names them (Exit Sketch, Smart
-  Dimension, Trim Entities). The script and the agent's notes keep their own names. A purple dot
-  marks what the agent made and a grey one what you made, on the design tree's rows; a feature from before Studio kept track has neither (`cad/edit/authors.py`
+  Dimension, Trim Entities). The script and the agent's notes keep their own names. On a part you
+  and the agent both worked on, a purple dot marks what the agent made and a grey one what you
+  made, on the design tree's rows; a part only one of you made has no dots, since they would tell
+  no row from another, and a feature from before Studio kept track has neither (`cad/edit/authors.py`
   records it in the project's `.studio/authors.jsonl`, and only once a chat has run there), and nor
   does any in a repository with linked worktrees, whose checkouts' checkpoints share refs that do
   not say which checkout made them. S finds any button of the toolbar by name, SolidWorks' or
