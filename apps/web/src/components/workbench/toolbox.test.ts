@@ -14,8 +14,7 @@ import {
   writeToolboxTab,
 } from "./toolbox";
 
-const menus = () =>
-  hardwareActions("Part", new Set(["fea", "dfm", "dfam-check", "cam"]), "CNC machining");
+const menus = () => hardwareActions("Part", new Set(["fea", "cad", "cam"]), "CNC machining");
 
 describe("pairLoneSections", () => {
   const [tool] = menus().flatMap((menu) => menu.sections.flatMap((section) => section.actions));
@@ -132,7 +131,7 @@ describe("toolboxLibraryLink", () => {
 });
 
 describe("the Toolbox on a file that is not a part", () => {
-  const SKILLS = new Set(["fea", "cad", "dfm", "cam", "dxf", "sendcutsend"]);
+  const SKILLS = new Set(["fea", "cad", "cam", "sendcutsend"]);
   const groupsFor = (kind: string) => toolboxGroups(hardwareActions(kind, SKILLS));
   const labels = (kind: string, tab: Parameters<typeof toolboxShownGroup>[1]) =>
     toolboxShownGroup(groupsFor(kind), tab)?.sections.flatMap((section) =>

@@ -114,8 +114,10 @@ if [ "$platform" = win ]; then
 else
   cp -R "$(cd "$(dirname "$python")/.." && pwd -P)" "$BUNDLE/python"
 fi
-# The library with its kernel (`cad[build123d]`, which brings netgen for FEA), the server (its
-# packaged runtime, which bundle.sh just built) and the agent apps' stdio transport, `cad-mcp`.
+# The library with its kernel and the integrations a part, a strength check and a manufacturing
+# check run on (`cad[build123d,netgen,calculix,trimesh]`: 0.11 counts an integration present only when
+# its extra is installed, else it makes an environment for it), the server (its packaged runtime,
+# which bundle.sh just built) and the agent apps' stdio transport, `cad-mcp`.
 wheel_url() {
   local wheel
   wheel="$(ls "$work"/"$1"-*.whl)"
@@ -128,8 +130,8 @@ done
 uv pip freeze --python "$(native "$venv_python")" | grep -v -E '^-e |^cad(-server|-mcp)?==|^ziglang' >"$work/constraints.txt"
 uv pip install --python "$(native "$bundle_python")" --break-system-packages \
   -c "$(native "$work/constraints.txt")" \
-  "cad[build123d] @ $(wheel_url cad)" "cad-server @ $(wheel_url cad_server)" "cad-mcp @ $(wheel_url cad_mcp)"
-"$bundle_python" -c "import cad_mcp.shim, cad_server.cli, OCP, netgen"
+  "cad[build123d,netgen,calculix,trimesh] @ $(wheel_url cad)" "cad-server @ $(wheel_url cad_server)" "cad-mcp @ $(wheel_url cad_mcp)"
+"$bundle_python" -c "import cad_mcp.shim, cad_server.cli, OCP, netgen, cad_ccx, trimesh"
 
 step "Adding the FEA solver"
 # CalculiX from conda-forge, which moves with its folder; the app points the CAD tools at it (CAD_CCX,

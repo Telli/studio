@@ -340,9 +340,10 @@ asked)`, or `by hand`; a decision written date first reads too), then every othe
   each other kind of file) and its Files, References and Threads tabs. In Engineering its New starts
   new designs only. A module shows once it has something in it, folds away (remembered on this
   computer), and is read again whenever the thread's agent changes files. Checks are the results
-  text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's
-  `FEA/<name>.<study>.json`) and `<stem>.<process>.result.json`
-  (`components/workbench/checkResults.ts`), named as an engineer says them (Strength, Vibration,
+  text-to-cad writes: 0.11's study folder (`cad step solve … --out studies/tip-load`), whose
+  `result.json` is the answer and `result.glb` its picture, and from earlier versions
+  `<name>.fea.json` (or a named study's `FEA/<name>.<study>.json`) and
+  `<stem>.<process>.result.json` (`components/workbench/checkResults.ts`), named as an engineer says them (Strength, Vibration,
   Casting), a study that passes saying its safety factor; a drawing is the engineering drawing's
   `<part>_drawing.pdf`. Each opens with a click.
 - **Import.** Studio scans the folders picked on this computer (Documents, Desktop and Downloads to

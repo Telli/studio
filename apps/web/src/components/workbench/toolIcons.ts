@@ -3,12 +3,14 @@ import {
   Axis3dIcon,
   CameraIcon,
   ChartColumnIcon,
+  ClipboardCheckIcon,
   ClipboardListIcon,
   DrillIcon,
   DropletIcon,
   DumbbellIcon,
   ExpandIcon,
   FileBoxIcon,
+  FileStackIcon,
   FlaskConicalIcon,
   FoldVerticalIcon,
   GlobeIcon,
@@ -33,6 +35,7 @@ import {
   UnfoldVerticalIcon,
   VideoIcon,
   WeightIcon,
+  ZapIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -80,6 +83,12 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   "standard-parts": ShoppingCartIcon,
   "export-step": FileBoxIcon,
   "export-mesh": PyramidIcon,
+  // Circuit board: its checks, then its files (a board's STEP takes the STEP export's picture)
+  "board-drc": KIND_ICONS.Electronics,
+  "board-review": ClipboardCheckIcon,
+  "schematic-erc": ZapIcon,
+  "board-fab": FileStackIcon,
+  "board-step": FileBoxIcon,
   // Document
   drawing: KIND_ICONS.Drawings,
   // Datums and the tolerances located from them.
@@ -104,10 +113,12 @@ const SECTION_ICONS: Partial<Record<string, LucideIcon>> = {
   simulation: DumbbellIcon,
   "fit-mass": RulerIcon,
   results: ChartColumnIcon,
+  "board-checks": KIND_ICONS.Electronics,
   printing: SpoolIcon,
   machining: DrillIcon,
   sheet: FoldVerticalIcon,
   files: FileBoxIcon,
+  "board-files": FileStackIcon,
   drawings: PencilRulerIcon,
   building: ListOrderedIcon,
   pictures: CameraIcon,

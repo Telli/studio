@@ -29,6 +29,8 @@ SAMPLE = "motor-mount"
 PART = "parts/motor_plate.py"
 # A fresh mesh of the same part lands near the shipped answer, not on it.
 STRESS_TOLERANCE = 0.25
+# `cad <type> solve`'s document type for a study's document, by its ending.
+SOLVED_TYPES = {".step": "step", ".stp": "step", ".xbf": "xbf"}
 # A rebuilt part matches its shipped STEP when solid_diff finds nothing added or removed. An assembly's solids are fused
 # first, which leaves the same sliver each way between two runs of one model: at most 0.0115% of its volume across the
 # five examples on text-to-cad 0.10.3. Its parts are held exactly, so this hides no change to a part.
@@ -107,9 +109,12 @@ def main() -> int:
                 project = home / "sample" / study.parent.parent.name
                 shipped = json.loads(study.with_name(study.name.replace(".study.json", ".fea.json"))
                                      .read_text(encoding="utf-8"))
-                solved = cad_command("cad_server.cli", "fea", "solve", shipped["document"],
-                                     str(home / f"{project.name}.glb"), "--study",
-                                     str(study.relative_to(study.parent.parent)), "--json", cwd=project, timeout=900)
+                # text-to-cad 0.11's `cad <type> solve`, its results written into a folder of their own.
+                document = shipped["document"]
+                solved = cad_command("cad_server.cli", SOLVED_TYPES[Path(document).suffix.lower()], "solve",
+                                     document, "--study", str(study.relative_to(study.parent.parent)),
+                                     "--out", str(home / "solved" / project.name), "--json", cwd=project,
+                                     timeout=900)
                 failed += 1 if solved.returncode != 0 else held_to_shipped(project.name, solved.stdout, shipped)
             return 1 if failed else 0
         finally:
@@ -159,11 +164,13 @@ def step_difference(result: dict, relative: Path) -> str | None:
 
 
 def held_to_shipped(name: str, stdout: str, shipped: dict) -> int:
-    """The solve's answer beside the example's: forces in balance, stress near the shipped run's, the same verdicts."""
+    """The solve's answer beside the example's: forces in balance, stress near the shipped run's, the same verdicts.
+    The solve's numbers are its `measurements` (text-to-cad 0.11's `result.json`); the example's answer was saved by
+    0.10, whose `summary` held them."""
     line = next((line for line in reversed(stdout.splitlines()) if line.startswith("{")), "")
     result = json.loads(line) if line else {}
-    summary = result.get("summary") or {}
-    expected = shipped["summary"]
+    summary = result.get("measurements") or {}
+    expected = shipped.get("measurements") or shipped["summary"]
     problems = []
     applied, reaction = summary.get("applied_force_N"), summary.get("reaction_force_N")
     if not applied or not reaction or any(abs(a + r) > 0.01 * max(1.0, abs(a)) for a, r in zip(applied, reaction)):

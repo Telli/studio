@@ -10,7 +10,7 @@ import {
   holdsWords,
 } from "./quickFind";
 
-const SKILLS = new Set(["fea", "cad", "dfm", "dfam-check", "cam", "gcode", "bambu-labs"]);
+const SKILLS = new Set(["fea", "cad", "cam", "print3d"]);
 const labels = (query: string, process?: string) =>
   findJobs(hardwareActions("Part", SKILLS, process), query).map(
     (job) => `${job.place}: ${job.action.label}`,

@@ -91,6 +91,12 @@ const TEMPLATES = [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES];
 const jobsRunBy = (skill: string) =>
   HARDWARE_ACTIONS.filter((job) => job.skill === skill).map((job) => job.id);
 
+/** The `cad` skill's manufacturing checks: its checks in Manufacture, one per way of making it. */
+const manufacturingChecks = () =>
+  HARDWARE_ACTIONS.filter(
+    (job) => job.skill === "cad" && job.checks && job.group === "Manufacture",
+  ).map((job) => job.id);
+
 /** A document type, with its example from `libraryExamples.json`. */
 const doc = (
   entry: Omit<LibraryDocument, "kind" | "example" | "exampleIn" | "ownTemplate">,
@@ -176,7 +182,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     id: "doc:manufacturing-check",
     name: "Manufacturing check",
     templates: [],
-    actions: [...jobsRunBy("dfm"), ...jobsRunBy("dfam-check")],
+    actions: manufacturingChecks(),
     what: "A review for the way it will be made, one finding at a time: 3D printing, CNC machining, sheet metal or molding.",
     give: "The part and its process.",
     asks: null,
@@ -227,10 +233,20 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     name: "Off-the-shelf parts",
     templates: [],
     actions: ["standard-parts"],
-    what: "Screws, bearings, motors and other parts you buy, as real STEP files from step.parts.",
+    what: "Screws, bearings, motors and other parts you buy, with where to buy them.",
     give: "The part that needs them.",
     asks: null,
-    gets: "Each part's STEP file, checked against its step.parts record, in parts/imported/.",
+    gets: "Each part with where to buy it, and its STEP file where the maker offers one.",
+  }),
+  doc({
+    id: "doc:circuit-board",
+    name: "Circuit board",
+    templates: [],
+    actions: jobsRunBy("pcb"),
+    what: "Checks of a KiCad board and its schematic, and the files a fab and an enclosure need.",
+    give: "The board or its schematic.",
+    asks: "Which fab it is for, and the current its tracks carry.",
+    gets: "Each check's findings with where they are and the fix, the fabrication files, and the board as STEP.",
   }),
   doc({
     id: "doc:export",
@@ -366,26 +382,19 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
 
 /** What to ask each of text-to-cad's skills, about the sample project. */
 const TRY_ASKING: Readonly<Record<string, string>> = {
-  "bambu-labs": "Get the cable clip ready to print on my P1S.",
   cad: "Make a bracket for an MG996R servo from 2 mm aluminium.",
   cam: "Toolpaths for a 3-axis mill with a 6 mm end mill.",
-  "dfam-check": "Will this print on an FDM printer without supports?",
-  dfm: "Can a sheet metal shop make this?",
-  dxf: "Give me the flat pattern for laser cutting.",
   "engineering-drawing": "Make a drawing of the bracket for the shop.",
   fea: "Will it hold 20 N at the horn?",
-  gcode: "Slice the cable clip in PETG, 0.2 mm layers.",
-  sdf: "Make an SDF of the servo mount for Gazebo.",
+  pcb: "Run the design rule check on my board and tell me what to fix.",
+  print3d: "Slice the cable clip in PETG and send it to my P1S.",
+  "robot-simulation": "Make the URDF for the servo mount.",
   sendcutsend: "Is the bracket ready to order from SendCutSend in 2 mm 5052?",
-  srdf: "Make a MoveIt SRDF for the servo mount.",
-  "step-parts": "Add four M3 × 8 socket head screws.",
-  urdf: "Make the URDF for the servo mount.",
   "work-instructions": "Write the work instructions for building the servo mount.",
 };
 
 /** A job's one name: the skill that runs it reads as its library entry does, whatever its own files say. */
 const JOB_NAMES: Readonly<Record<string, string>> = {
-  dfm: "Manufacturing check",
   fea: "Simulation",
 };
 
@@ -395,20 +404,14 @@ const JOB_NAMES: Readonly<Record<string, string>> = {
  * that set it apart show.
  */
 const SKILL_BLURBS: Readonly<Record<string, string>> = {
-  "bambu-labs": "Send prints to Bambu printers",
   cad: "Generate CAD artifacts",
   cam: "3-axis milling and drilling toolpaths",
-  "dfam-check": "Measure meshes against DfAM rules",
-  dfm: "Sheet metal, CNC, or injection molding",
-  dxf: "2D DXF drawings",
   "engineering-drawing": "Dimensioned PDF of a CAD part",
   fea: "Linear static stress studies",
-  gcode: "Slice models into G-code",
-  sdf: "SDFormat robot models",
+  pcb: "Edit and check KiCad circuit boards",
+  print3d: "Slice and print on Bambu Lab printers",
+  "robot-simulation": "URDF, SRDF and SDF robot descriptions",
   sendcutsend: "Review DXF/STEP against specs",
-  srdf: "MoveIt2 SRDF semantics",
-  "step-parts": "Find and download STEP files",
-  urdf: "URDF robot descriptions",
   "work-instructions": "Step-by-step assembly PDF",
 };
 
@@ -418,18 +421,13 @@ const SKILL_BLURBS: Readonly<Record<string, string>> = {
  */
 const TEXT_TO_CAD_NAMES: Readonly<Record<string, string>> = {
   ...JOB_NAMES,
-  "bambu-labs": "Bambu Labs",
   cad: "CAD",
   cam: "CAM",
-  "dfam-check": "DfAM Check",
-  dxf: "DXF",
   "engineering-drawing": "Engineering Drawing",
-  gcode: "G-code",
-  sdf: "SDF",
+  pcb: "PCB",
+  print3d: "3D Printing",
+  "robot-simulation": "Robot simulation",
   sendcutsend: "SendCutSend",
-  srdf: "SRDF",
-  "step-parts": "STEP Parts",
-  urdf: "URDF",
   "work-instructions": "Work Instructions",
 };
 

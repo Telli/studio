@@ -67,7 +67,6 @@ ADAPTER = (146, 156, 168)
 SCREW = (112, 118, 126)
 CLIP = (150, 156, 164)
 PLATE = (108, 113, 122)
-FRAME = (120, 125, 133)
 
 # One sheet: portrait, the same size in the same place on every cover.
 SHEET = {"x": 197, "y": 36, "w": 246, "h": 328, "r": 7}
@@ -642,31 +641,6 @@ def clip_mesh():
     return smoothed(clip_solid())
 
 
-def thin_faces(mesh, limit: float = 1.2):
-    """The faces under the DfAM check's 1.2 mm wall: a ray from each straight into the solid."""
-    origins = mesh.triangles_center - mesh.face_normals * 1e-4
-    locations, rays, _ = mesh.ray.intersects_location(origins, -mesh.face_normals, multiple_hits=False)
-    thickness = np.full(len(mesh.faces), np.inf)
-    thickness[rays] = np.linalg.norm(locations - origins[rays], axis=1)
-    return thickness < limit
-
-
-def cover_dfam():
-    """The real DfAM check's failure: the clip's lips, under the FDM wall limit."""
-    mesh = clip_solid()
-    # Only the lips: the check's report puts every thin sample above y 7, here turned to below -7.
-    flagged = thin_faces(mesh) & (mesh.triangles_center[:, 1] < -5.5)
-    camera = Camera().fit(mesh.vertices, SAFE * 0.8)
-    shaded_mesh = smoothed(mesh)
-
-    def hook(picture, marks):
-        facing = mesh.face_normals @ camera.forward < 0
-        chosen = mesh.submesh([np.nonzero(flagged & facing)[0]], append=True)
-        marks.add(shape_path(flat_shape([chosen], camera, 0.3)), "fail", None, 0.85)
-
-    return model([Part(shaded_mesh, CLIP)], camera, hook)
-
-
 def plate_mesh(low, high):
     import trimesh
 
@@ -698,34 +672,6 @@ def cover_gcode():
     return model(parts, camera, hook)
 
 
-def cover_bambu():
-    """The clip whole on the plate, under a printer's gantry and head. An illustration."""
-    import trimesh
-
-    mesh = clip_mesh()
-    low, high = mesh.bounds
-    half = 15.0
-    floor = low[2] - 0.8
-    plate = plate_mesh((-half, -half + 4, floor), (half, half + 4, low[2]))
-    top = floor + 25
-    rail = trimesh.creation.box(bounds=[(-half, 2.6, top - 1.2), (half, 5.4, top)])
-    head = trimesh.creation.box(bounds=[(-3.5, 1.2, top - 6.5), (3.5, 6.8, top + 1.4)])
-    nozzle = trimesh.creation.box(bounds=[(-0.7, 3.3, top - 8.5), (0.7, 4.7, top - 6.5)])
-    posts = [trimesh.creation.box(bounds=[(x - 0.8, y - 0.8, floor), (x + 0.8, y + 0.8, top + 1)])
-             for x, y in ((-half - 0.8, 4), (half + 0.8, 4))]
-    camera = Camera().fit(np.vstack([plate.vertices, head.vertices, *[post.vertices for post in posts]]), SAFE)
-    parts = [Part(plate, PLATE, flat=True), Part(mesh, CLIP, layers=LAYER * 2),
-             Part(rail, FRAME, flat=True), Part(head, SERVO_CASE, flat=True), Part(nozzle, ADAPTER, flat=True),
-             *[Part(post, FRAME, flat=True) for post in posts]]
-
-    def hook(picture, marks):
-        for start, end in box_edges((-half, -half + 4, floor), (half, half + 4, floor)):
-            for run in seen_runs(picture, [start, end]):
-                marks.line(run, "hue", 2.6)
-
-    return model(parts, camera, hook)
-
-
 def cover_urdf():
     """The URDF's chain as its file gives it: base_link, horn_joint and its axis and limits, tool0."""
     origin, axis, lower, upper = horn_joint()
@@ -742,62 +688,6 @@ def cover_urdf():
         for x, y in chain:
             marks.add(circle_path(x, y, 11), "hue")
             marks.add(circle_path(x, y, 4.5), "ground")
-
-    return model(parts, camera, hook)
-
-
-def cover_sdf():
-    """The SDF's collision shapes where its poses put them, and its links' centres of mass."""
-    root = robot_file("servo_mount.sdf")
-    parts = mount_parts(0.42)
-    camera = mount_camera()
-    origin, axis, *_ = horn_joint()
-
-    def hook(picture, marks):
-        for link in root.iter("link"):
-            at = origin if link.get("name") == "horn_link" else np.zeros(3)
-            for collision in link.iter("collision"):
-                pose = np.array(numbers(collision.find("pose").text)[:3]) * 1000
-                middle = at + pose
-                box = collision.find("geometry/box/size")
-                if box is not None:
-                    half = np.array(numbers(box.text)) * 500
-                    for start, end in box_edges(middle - half, middle + half):
-                        marks.line(camera.project([start, end])[:, :2], "hue", 3.0)
-                cylinder = collision.find("geometry/cylinder")
-                if cylinder is not None:
-                    radius = float(cylinder.find("radius").text) * 1000
-                    length = float(cylinder.find("length").text) * 1000
-                    for height in (-length / 2, length / 2):
-                        marks.line(camera.project(arc(middle, radius, 0, 2 * math.pi, height))[:, :2], "hue", 3.0)
-            inertial = link.find("inertial/pose")
-            if inertial is not None:
-                x, y, _ = camera.project(at + np.array(numbers(inertial.text)[:3]) * 1000)[0]
-                marks.add(circle_path(x, y, 10), "hue")
-
-    return model(parts, camera, hook)
-
-
-def cover_srdf():
-    """The SRDF's planning group, the horn, at its named states: home and each limit."""
-    root = robot_file("servo_mount.srdf")
-    states = [float(state.find("joint").get("value")) for state in root.iter("group_state")]
-    origin, axis, *_ = horn_joint()
-    tool = origin + axis * tool_height()
-    parts = mount_parts(0.42, skip=("horn_adapter",)) + mount_parts(only=("horn_adapter",))
-    camera = mount_camera()
-
-    def hook(picture, marks):
-        adapter = mount()["horn_adapter"]
-        marks.add(shape_path(flat_shape(adapter, camera)), "hue", None, 0.55)
-        reach = 27.0
-        wedge = camera.project(np.vstack([[tool], arc(tool, reach, min(states), max(states))]))[:, :2]
-        marks.add(line_path(wedge, closed=True), "hue", None, 0.28)
-        centre = camera.project(tool)[0, :2]
-        for state in states:
-            tip = camera.project(tool + np.array([reach * math.cos(state), reach * math.sin(state), 0]))[0, :2]
-            marks.line([centre, tip], "hue", 4.0)
-            marks.add(circle_path(tip[0], tip[1], 10), "hue")
 
     return model(parts, camera, hook)
 
@@ -1261,14 +1151,10 @@ COVERS = {
     "fit": cover_fit,
     "pmi": cover_pmi,
     "urdf": cover_urdf,
-    "sdf": cover_sdf,
-    "srdf": cover_srdf,
     "stress": cover_stress,
     "toolpaths": cover_toolpaths,
     "flags": cover_flags,
-    "dfam": cover_dfam,
     "gcode": cover_gcode,
-    "bambu": cover_bambu,
     "dxf": cover_dxf,
     "nest": cover_nest,
     "drawing": cover_drawing,
