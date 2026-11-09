@@ -9,7 +9,8 @@ answer to the one the example ships with. No pass, no release.
 
 The studio folder is `Studio.app/Contents/Resources/studio` on a Mac and `resources\\studio` beside Studio.exe on
 Windows. Nothing it writes is the person's: the home is a scratch folder, removed after, and the engine listens on
-its own port (CHECK_ENGINE_PORT), never the app's (3345) or a checkout's (3346), so it never retires either.
+its own port (`check_engine_port`), never the app's (3345) or a checkout's (3346), so it never retires either,
+and one a leftover engine from an earlier check holds never stops it.
 """
 
 from __future__ import annotations
@@ -17,13 +18,13 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
 
-CHECK_ENGINE_PORT = "3347"
 # The part it builds: the motor mount's plate, a model script.
 SAMPLE = "motor-mount"
 PART = "parts/motor_plate.py"
@@ -82,7 +83,7 @@ def main() -> int:
             "CAD_STATE_DIR": str(cad / "state"),
             "CAD_CACHE_DIR": str(cad / "cache"),
             "CAD_ENGINE_DIR": str(cad / "engine"),
-            "CAD_ENGINE_PORT": CHECK_ENGINE_PORT,
+            "CAD_ENGINE_PORT": check_engine_port(),
             "CAD_LAUNCHER_DIR": str(home / "bin"),
             "CAD_UPDATE_FIND_LINKS": str(wheels),
             # A home with nothing in it: no tool this Mac or PC happens to have cached stands in for one the app
@@ -125,6 +126,13 @@ def main() -> int:
         finally:
             subprocess.run([str(python), "-P", "-m", "cad_server.cli", "stop"], env=env, capture_output=True,
                            timeout=60)
+
+
+def check_engine_port() -> str:
+    """A port nothing listens on now, for this check's engine alone."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return str(probe.getsockname()[1])
 
 
 def shipped_answer(study: Path) -> Path:
