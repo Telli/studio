@@ -1,6 +1,7 @@
 import {
   AnvilIcon,
   Axis3dIcon,
+  BoxIcon,
   CameraIcon,
   ChartColumnIcon,
   ClipboardCheckIcon,
@@ -83,12 +84,12 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   "standard-parts": ShoppingCartIcon,
   "export-step": FileBoxIcon,
   "export-mesh": PyramidIcon,
-  // Circuit board: its checks, then its files (a board's STEP takes the STEP export's picture)
+  // Circuit board: its checks, then its files (a board's STEP is a box, the part's STEP a file)
   "board-drc": KIND_ICONS.Electronics,
   "board-review": ClipboardCheckIcon,
   "schematic-erc": ZapIcon,
   "board-fab": FileStackIcon,
-  "board-step": FileBoxIcon,
+  "board-step": BoxIcon,
   // Document
   drawing: KIND_ICONS.Drawings,
   // Datums and the tolerances located from them.
