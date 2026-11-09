@@ -13,7 +13,7 @@ import math
 import build123d as bd
 from cad import model, step
 from cad.build123d import configuration_sequence
-from cad.mates import Coincident, Concentric, mate
+from cad.mates import Coincident, Concentric, Parallel, mate
 
 PARTS = Path(__file__).resolve().parent.parent / "parts"
 sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, each built in this run with its own document
@@ -55,13 +55,17 @@ def servo_mount():
     tab_top = servo.faces().filter_by(bd.Axis.Z).group_by(bd.Axis.Z)[2][0]
 
     screw = step.read(SCREW)
+    bracket_side = bracket.faces().filter_by(bd.Axis.Y).sort_by(bd.Axis.Y)[0]
     screws = []
     for end, holes in (("output_end", tapped.sort_by(bd.Axis.X)[-2:]), ("other_end", tapped.sort_by(bd.Axis.X)[:2])):
         for side, hole in zip(("back", "front"), holes.sort_by(bd.Axis.Y)):
             placed = screw.moved(bd.Location())
             shank = placed.faces().filter_by(bd.GeomType.CYLINDER).sort_by(bd.Axis.Z)[0]
             head_underside = placed.faces().filter_by(bd.Axis.Z).sort_by(bd.Axis.Z)[1]
-            mate(placed, Concentric(shank, hole), Coincident(head_underside, tab_top))
+            # A flat of the hex socket square to the bracket's side, so each screw's turn about its own axis is set,
+            # not left to the solver: left free, it lands on another turn on Windows than on a Mac.
+            socket_flat = placed.faces().filter_by(bd.GeomType.PLANE).filter_by(lambda face: abs(face.normal_at().Z) < 1e-6).sort_by(bd.Axis.Y)[-1]
+            mate(placed, Concentric(shank, hole), Coincident(head_underside, tab_top), Parallel(socket_flat, bracket_side))
             placed.label = f"m3x8_screw:{end}_{side}"
             screws.append(placed)
 
