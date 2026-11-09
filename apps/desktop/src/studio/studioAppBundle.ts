@@ -24,6 +24,8 @@ import { studioEngineEnv, studioPath } from "./studioEngine.ts";
  *   `T3CODE_DEFAULT_PLUGINS`).
  * - The finished sample projects, where the bundle has them (`T3CODE_SAMPLES_DIR`), which an
  *   example's Make a copy to edit copies into a new project.
+ * - The text-to-cad library's own wheel, where the bundle has it (`CAD_UPDATE_FIND_LINKS`), so an
+ *   integration made on first use installs Studio's text-to-cad, not the index's of that version.
  * - The CAD tools' own state, cache, server and port under the home (`studioEngineEnv`), with
  *   their `cad` command first on PATH, so the agents Studio runs use Studio's CAD server and a
  *   user's own never meets it. The bundled installation is registered there and that command
@@ -72,6 +74,9 @@ export function applyStudioAppBundle(input: {
   env.PATH = studioPath(env.CAD_LAUNCHER_DIR!, env.PATH);
   const samples = NodePath.join(bundle, "sample");
   if (NodeFS.existsSync(samples)) setDefault(env, "T3CODE_SAMPLES_DIR", samples);
+  // The library's wheel, which an integration made on first use (kicad's) installs from.
+  const wheels = NodePath.join(bundle, "wheels");
+  if (NodeFS.existsSync(wheels)) setDefault(env, "CAD_UPDATE_FIND_LINKS", wheels);
   try {
     trustBundledTools(bundle);
     // A folder of Studio's own name: T3 Code's plugin store keys a marketplace by its folder name.

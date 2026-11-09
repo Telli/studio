@@ -181,6 +181,19 @@ describe("applyStudioAppBundle", () => {
     expect(env.T3CODE_SAMPLES_DIR).toBeUndefined();
   });
 
+  it("names the bundled library wheel to the CAD tools when the bundle has one", () => {
+    const res = resources();
+    const wheels = NodePath.join(res, "studio", "wheels");
+    write(NodePath.join(wheels, "cad-0.11.3-py3-none-any.whl"), "");
+    const env: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: res, homeDirectory: tempDir(), env });
+    expect(env.CAD_UPDATE_FIND_LINKS).toBe(wheels);
+
+    const none: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: none });
+    expect(none.CAD_UPDATE_FIND_LINKS).toBeUndefined();
+  });
+
   it("says the versions the build was given, and none it was not", () => {
     const env: Record<string, string | undefined> = {};
     applyStudioAppBundle({

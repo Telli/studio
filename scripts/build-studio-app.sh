@@ -132,6 +132,32 @@ uv pip install --python "$(native "$bundle_python")" --break-system-packages \
   -c "$(native "$work/constraints.txt")" \
   "cad[build123d,netgen,calculix,trimesh] @ $(wheel_url cad)" "cad-server @ $(wheel_url cad_server)" "cad-mcp @ $(wheel_url cad_mcp)"
 "$bundle_python" -c "import cad_mcp.shim, cad_server.cli, OCP, netgen, cad_ccx, trimesh"
+# An integration made on first use (kicad's) installs the library again in an environment of its own,
+# from the archive its record names (direct_url.json): here the build's wheel, gone once the build ends.
+# So the app keeps the library's wheel (`wheels`, which it names to the CAD tools as
+# CAD_UPDATE_FIND_LINKS, studioAppBundle.ts) and the records go: `cad==<version>` then resolves to that
+# wheel, Studio's text-to-cad, before the index's.
+mkdir -p "$BUNDLE/wheels"
+cp "$work"/cad-*.whl "$BUNDLE/wheels/"
+"$bundle_python" - <<'PY'
+from importlib.metadata import distribution
+
+for name in ("cad", "cad-server", "cad-mcp"):
+    found = distribution(name)
+    for file in found.files or ():
+        if file.name != "direct_url.json":
+            continue
+        record = found.locate_file(file)
+        record.unlink(missing_ok=True)
+        listing = record.with_name("RECORD")
+        kept = [line for line in listing.read_text(encoding="utf-8").splitlines(keepends=True)
+                if not line.startswith(f"{record.parent.name}/direct_url.json,")]
+        listing.write_text("".join(kept), encoding="utf-8")
+PY
+"$bundle_python" -c "
+from importlib.metadata import distribution
+left = [name for name in ('cad', 'cad-server', 'cad-mcp') if distribution(name).read_text('direct_url.json')]
+assert not left, f'still named by a build wheel: {left}'"
 
 # The FEA solver is cad[calculix]'s own CalculiX (the cad-ccx package), which carries its libraries
 # and moves with the bundle's Python. `ccx -v` prints its version and exits 201.

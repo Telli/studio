@@ -56,6 +56,18 @@ def main() -> int:
         if not needed.is_file():
             print(f"FAIL the app carries no {needed}", file=sys.stderr)
             return 1
+    wheels = bundle / "wheels"
+    if not any(wheels.glob("cad-*.whl")):
+        print(f"FAIL the app carries no library wheel under {wheels}", file=sys.stderr)
+        return 1
+    # An install record naming the build's wheel sends an integration made on first use to a file that is gone.
+    named = subprocess.run([str(python), "-c", "from importlib.metadata import distribution as d; "
+                            "print(' '.join(n for n in ('cad', 'cad-server', 'cad-mcp') if d(n).read_text('direct_url.json')))"],
+                           capture_output=True, text=True)
+    if named.returncode != 0 or named.stdout.strip():
+        print(f"FAIL still installed from the build's wheel: {named.stdout.strip() or named.stderr.strip()}",
+              file=sys.stderr)
+        return 1
     if not studies:
         print(f"FAIL the app carries no example with a strength study under {samples}", file=sys.stderr)
         return 1
@@ -72,6 +84,7 @@ def main() -> int:
             "CAD_ENGINE_DIR": str(cad / "engine"),
             "CAD_ENGINE_PORT": CHECK_ENGINE_PORT,
             "CAD_LAUNCHER_DIR": str(home / "bin"),
+            "CAD_UPDATE_FIND_LINKS": str(wheels),
             # A home with nothing in it: no tool this Mac or PC happens to have cached stands in for one the app
             # is missing.
             "HOME": str(home),

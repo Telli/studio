@@ -61,6 +61,9 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
     in that Python, so the Mac needs no Node or browser for them;
   - the FEA solver, CalculiX, as `cad[calculix]`'s own `cad-ccx` package in that Python (about
     16 MB with its libraries), so a strength check needs nothing installed;
+  - the `cad` wheel itself (`wheels/`, `CAD_UPDATE_FIND_LINKS`), with the wheels' install records
+    removed, so an integration made on first use (KiCad's) installs Studio's text-to-cad again
+    rather than the build machine's long-gone file;
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;
