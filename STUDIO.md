@@ -59,10 +59,8 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - the CAD tools with a Python of their own: uv's movable CPython 3.14, with the `cad`,
     `cad-server` and `cad-mcp` wheels and their dependencies pinned to the checkout's `.venv`. They make STL and DXF, and draws part pictures,
     in that Python, so the Mac needs no Node or browser for them;
-  - the FEA solver, CalculiX from conda-forge (fetched by micromamba, its one-file build when the
-    machine has none), which the app names to the CAD tools as `CAD_CCX`, so a strength check needs
-    nothing installed. Windows's comes with OpenBLAS, not conda-forge's default MKL (about 100 MB
-    against 600);
+  - the FEA solver, CalculiX, as `cad[calculix]`'s own `cad-ccx` package in that Python (about
+    16 MB with its libraries), so a strength check needs nothing installed;
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;

@@ -42,12 +42,6 @@ def python_of(bundle: Path) -> Path:
     return windows if windows.is_file() else bundle / "python" / "bin" / "python3"
 
 
-def ccx_of(bundle: Path) -> Path:
-    """The FEA solver the app names to the CAD tools (studioAppBundle.ts): conda-forge's layout."""
-    windows = bundle / "calculix" / "Library" / "bin" / "ccx.exe"
-    return windows if windows.is_file() else bundle / "calculix" / "bin" / "ccx"
-
-
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__.strip().splitlines()[-4], file=sys.stderr)
@@ -58,8 +52,7 @@ def main() -> int:
     # Each study beside the answer the example ships with (`<name>.fea.json`), which names the document it solved.
     studies = sorted(study for study in samples.glob("*/studies/*.study.json")
                      if study.with_name(study.name.replace(".study.json", ".fea.json")).is_file())
-    ccx = ccx_of(bundle)
-    for needed in (python, ccx, samples / SAMPLE / PART):
+    for needed in (python, samples / SAMPLE / PART):
         if not needed.is_file():
             print(f"FAIL the app carries no {needed}", file=sys.stderr)
             return 1
@@ -70,17 +63,17 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="studio-app-check-") as folder:
         home = Path(folder)
         cad = home / "cad"
+        # The app's own solver, cad[calculix]'s, never one CAD_CCX names here.
         env = {
-            **os.environ,
+            **{name: value for name, value in os.environ.items() if name != "CAD_CCX"},
             # As studioEngine.ts gives the app's, on a port of this check's own.
             "CAD_STATE_DIR": str(cad / "state"),
             "CAD_CACHE_DIR": str(cad / "cache"),
             "CAD_ENGINE_DIR": str(cad / "engine"),
             "CAD_ENGINE_PORT": CHECK_ENGINE_PORT,
             "CAD_LAUNCHER_DIR": str(home / "bin"),
-            # The app's own solver, and a home with nothing in it: no tool this Mac or PC happens to have
-            # cached stands in for one the app is missing.
-            "CAD_CCX": str(ccx),
+            # A home with nothing in it: no tool this Mac or PC happens to have cached stands in for one the app
+            # is missing.
             "HOME": str(home),
             "USERPROFILE": str(home),
             "DO_NOT_TRACK": "1",

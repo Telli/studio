@@ -181,19 +181,6 @@ describe("applyStudioAppBundle", () => {
     expect(env.T3CODE_SAMPLES_DIR).toBeUndefined();
   });
 
-  it("points the CAD tools at the bundled FEA solver when the bundle has one", () => {
-    const res = resources();
-    const ccx = NodePath.join(res, "studio", "calculix", "bin", "ccx");
-    write(ccx, "");
-    const env: Record<string, string | undefined> = {};
-    applyStudioAppBundle({ resourcesPath: res, homeDirectory: tempDir(), env, platform: "darwin" });
-    expect(env.CAD_CCX).toBe(ccx);
-
-    const none: Record<string, string | undefined> = {};
-    applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: none });
-    expect(none.CAD_CCX).toBeUndefined();
-  });
-
   it("says the versions the build was given, and none it was not", () => {
     const env: Record<string, string | undefined> = {};
     applyStudioAppBundle({
