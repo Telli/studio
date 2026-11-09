@@ -17,7 +17,7 @@ A mounting bracket for an MG996R servo, bent from 2 mm 5052-H32 aluminium sheet:
 - Machine the adapter on a 3-axis mill in two setups from a 28 × 28 × 9 mm block, and broach its spline afterwards (2026-10-23, asked)
 - Keep the clip as drawn for now: its FDM check's two failures stay open actions (2026-10-23, asked)
 - Plan the adapter's CAM job again with FreeCAD, which text-to-cad's CAM plans with: the bore from the bottom first, then the top faced, its counterbore and holes cut, and the outline cut free into a sacrificial plate; tap the M3 holes and break the edges by hand, since it plans no tapping or chamfer (2026-10-28, assumed)
-- Give the CAM job's tools the T numbers, shank sizes and drill point angles text-to-cad 0.11 asks for: T1 to T6 as their ids, the 6 mm end mill's shank 6 mm and the 1.5 and 1 mm end mills' 3 mm, both drills' points 118°, all proposed like the tools (2026-11-08, assumed)
+- Give the CAM job's tools the T numbers, shank sizes and drill point angles text-to-cad 0.11 asks for: T1 to T6 as their ids, the 6 mm end mill's shank 6 mm and the 1.5 and 1 mm end mills' 3 mm, both drills' points 118°, all proposed like the tools (2026-11-09, asked)
 - Describe the mount as a robot with one joint, the horn turning 60° each way, for ROS, MoveIt and Gazebo (2026-10-23, asked)
 
 ## Open actions

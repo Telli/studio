@@ -33,7 +33,7 @@ A plate milled from 6061-T6 aluminium that mounts a NEMA 17 stepper motor to a f
 - Note "Deburr the holes and slots.", the drawing's own words, as Note 2 (2026-10-27, assumed)
 - Name two views: Section A-A through the bore, with the thickness, the pocket's depth, the bore and datum A's flatness, and Top, with every hole's and slot's size and position; the basic dimensions that locate the M3 holes and the slots' ends are in neither, so Top stays legible (the viewer lists them in its PMI section, and the STEP carries them) (2026-10-27, assumed)
 - Cut the pilot bore and the belt slots in the CAM program, with a 4 mm end mill added for the slots, no longer by hand (2026-10-28, assumed)
-- Give the CAM job's tools the T numbers, shank sizes and drill point angle text-to-cad 0.11 asks for: T1 to T4 as their ids, each end mill's shank its own diameter, the drill's point 118°, all proposed like the tools (2026-11-08, assumed)
+- Give the CAM job's tools the T numbers, shank sizes and drill point angle text-to-cad 0.11 asks for: T1 to T4 as their ids, each end mill's shank its own diameter, the drill's point 118°, all proposed like the tools (2026-11-09, asked)
 
 ## Open actions
 
