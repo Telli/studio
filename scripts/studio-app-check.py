@@ -163,10 +163,39 @@ def rebuilt_as_shipped(project: Path, shipped: Path, compared: Path, cad_command
         problem = step_difference(json.loads((out / "result.json").read_text(encoding="utf-8")), relative)
         if problem:
             print(f"FAIL {project.name}: {relative.as_posix()} {problem}", file=sys.stderr)
+            if "assemblies" in relative.parts:
+                print(parts_moved(shipped / relative, rebuilt, project), file=sys.stderr)
             failed += 1
     if not failed:
         print(f"ok   {project.name}: {len(delivered)} STEP files as shipped")
     return 1 if failed else 0
+
+
+# Each part of an assembly STEP: its label, where it sits and its volume, one line each.
+PARTS_OF = """
+import sys
+from pathlib import Path
+from cad import step
+def at(v):
+    return ", ".join(f"{round(x, 4) + 0.0:.4f}" for x in (v.X, v.Y, v.Z))
+for part in step.read(Path(sys.argv[1])).children:
+    print(f"{part.label}: at ({at(part.location.position)}) turned ({at(part.location.orientation)}), {part.volume:.3f} mm3")
+"""
+
+
+def parts_moved(shipped: Path, rebuilt: Path, project: Path) -> str:
+    """Which parts of a rebuilt assembly sit elsewhere or hold another volume than the shipped one's, so a
+    failure says what moved."""
+    lines = []
+    for path in (shipped, rebuilt):
+        done = subprocess.run([sys.executable, "-P", "-c", PARTS_OF, str(path)], cwd=project, capture_output=True,
+                              text=True, timeout=300)
+        lines.append(done.stdout.splitlines() if done.returncode == 0 else [f"(could not read: {done.stderr[-300:]})"])
+    before, after = lines
+    moved = [f"     shipped {old}\n     rebuilt {new}" for old, new in zip(before, after) if old != new]
+    if len(before) != len(after):
+        moved.append(f"     {len(before)} parts shipped, {len(after)} rebuilt")
+    return "\n".join(moved) or "     every part sits where it did, with its volume: the difference is in the fuse"
 
 
 def step_difference(result: dict, relative: Path) -> str | None:
