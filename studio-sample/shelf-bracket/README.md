@@ -27,6 +27,6 @@ A wall shelf bracket bent from 14 gauge G90 galvanised steel, SendCutSend's G90-
 
 - The models: [the shelf bracket](parts/shelf_bracket.py), its [flat pattern](parts/shelf_bracket_flat.py) and [cut file](parts/shelf_bracket_cut.py), with [the models' catalog](parts/README.md).
 - Their files, from [`exports.py`](exports.py): [the bracket's STEP](parts/shelf_bracket.step), the one SendCutSend is sent, and [the flat pattern's](parts/shelf_bracket_flat.step).
-- The checks: [strength](docs/shelf_bracket_strength_report.md) with its [result](studies/shelf_bracket.fea.glb) and [sheet metal](parts/shelf_bracket_sheet_metal.md).
+- The checks: [strength](docs/shelf_bracket_strength_report.md) with its [result](studies/shelf_bracket/result.glb) and [sheet metal](parts/shelf_bracket_sheet_metal.md).
 - Making it: [the cut file](cut/shelf_bracket_cut.dxf) and [its SendCutSend preflight](cut/shelf_bracket_sendcutsend.md), and [the bracket's drawing](drawings/shelf_bracket_drawing.pdf).
 - The documents: [PRD](docs/prd.md).
