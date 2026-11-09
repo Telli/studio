@@ -330,15 +330,13 @@ describe("library catalog", () => {
   });
 
   it("shows each skill where New and the menus offer it", () => {
-    expect(showsUpAs("print3d")).toEqual([
-      "Manufacturing: Slice for FDM, Print on a Bambu printer",
-    ]);
+    expect(showsUpAs("print3d")).toEqual(["Manufacturing: Slice and print"]);
     expect(showsUpAs("pcb")).toEqual([
-      "Analysis: Design rule check, Review before ordering, Electrical rule check",
+      "Analysis: Board checks, Review before ordering",
       "Manufacturing: Fabrication files, Board STEP",
     ]);
     // A template that works from a part is no New's: the skill shows up in its menus alone.
-    expect(showsUpAs("fea")).toEqual(["Analysis: Strength under load, Explain these results"]);
+    expect(showsUpAs("fea")).toEqual(["Analysis: Strength under load"]);
     expect(showsUpAs("robot-simulation")).toEqual([
       "New: Robot description",
       "Documents: More documents",
@@ -403,36 +401,36 @@ describe("Studio's job skills on the Toolbox page (jobSkills.ts)", () => {
   // text-to-cad's plugin as Studio lays it out: its own skills, then Studio's job skills, each with
   // its openai.yaml face as studio-job-skills/ writes it.
   const laidOut = plugin("text-to-cad", true, [
-    detail("print3d"),
+    detail("pcb"),
     {
-      name: "bambu",
-      displayName: "Print on a Bambu printer",
-      description: "The print opened in Bambu Connect or Bambu Studio, for you to check and start.",
-      defaultPrompt: "Use $bambu to slice the part and get it ready on my Bambu printer.",
+      name: "fdm",
+      displayName: "Check for FDM printing",
+      description: "Findings for FDM printing, each passing, to fix or to check, with the fix.",
+      defaultPrompt: "Use $fdm to check the part for FDM printing.",
     },
-    { ...detail("urdf"), displayName: "URDF" },
+    { ...detail("board-fab"), displayName: "Fabrication files" },
     detail("cad"),
   ]);
   const tiles = librarySkills([laidOut]);
   const tileOf = (name: string) => tiles.find((tile) => tile.name === name);
 
   it("puts text-to-cad's own skills first, then the job skills in the menus' order", () => {
-    expect(tiles.map((tile) => tile.name)).toEqual(["print3d", "cad", "bambu", "urdf"]);
+    expect(tiles.map((tile) => tile.name)).toEqual(["pcb", "cad", "fdm", "board-fab"]);
   });
 
   it("names a job skill as its job, by the skill that does it, with its job's example", () => {
-    expect(tileOf("bambu")).toMatchObject({
-      displayName: "Print on a Bambu printer",
-      blurb: "With the 3D Printing skill",
-      tryAsking: "Slice the part and get it ready on my Bambu printer.",
-      ...exampleOfEntry("doc:print"),
+    expect(tileOf("fdm")).toMatchObject({
+      displayName: "Check for FDM printing",
+      blurb: "With the CAD skill",
+      tryAsking: "Check the part for FDM printing.",
+      ...exampleOfEntry("doc:manufacturing-check"),
     });
-    expect(tileOf("urdf")?.blurb).toBe("With the Robot simulation skill");
+    expect(tileOf("board-fab")?.blurb).toBe("With the PCB skill");
   });
 
   it("says where its job shows up", () => {
-    expect(showsUpAs("bambu")).toEqual(["Manufacturing: Print on a Bambu printer"]);
-    expect(showsUpAs("urdf")).toEqual(["Documents: More documents"]);
+    expect(showsUpAs("fdm")).toEqual(["Manufacturing: Check for FDM printing"]);
+    expect(showsUpAs("board-fab")).toEqual(["Manufacturing: Fabrication files"]);
   });
 });
 

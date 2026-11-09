@@ -41,10 +41,12 @@ describe("each job of a skill with several as a skill of its own", () => {
           : [],
       ),
     );
-    expect(several).toEqual(new Set(["cad", "cam", "fea", "pcb", "print3d", "robot-simulation"]));
-    expect(JOB_SKILL_JOBS.map((job) => job.id)).toContain("urdf");
+    expect(several).toEqual(new Set(["cad", "pcb"]));
+    expect(JOB_SKILL_JOBS.map((job) => job.id)).toContain("fdm");
     expect(JOB_SKILL_JOBS.map((job) => job.id)).not.toContain("sendcutsend");
-    expect(jobOfSkill("bambu")?.skill).toBe("print3d");
+    expect(jobOfSkill("board-fab")?.skill).toBe("pcb");
+    // A skill with one job is called by its own name: its job is no skill of its own.
+    expect(jobOfSkill("slice")).toBeNull();
     expect(jobOfSkill("cad")).toBeNull();
   });
 

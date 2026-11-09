@@ -1,4 +1,0 @@
-interface:
-  display_name: "STL and 3MF"
-  short_description: "An STL and a 3MF, saved beside the part."
-  default_prompt: "Use $export-mesh to export the part as STL and 3MF."

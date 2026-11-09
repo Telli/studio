@@ -3,7 +3,6 @@ import {
   Axis3dIcon,
   BoxIcon,
   CameraIcon,
-  ChartColumnIcon,
   ClipboardCheckIcon,
   ClipboardListIcon,
   DrillIcon,
@@ -14,14 +13,10 @@ import {
   FileStackIcon,
   FlaskConicalIcon,
   FoldVerticalIcon,
-  GlobeIcon,
   LayersIcon,
   ListOrderedIcon,
-  Move3dIcon,
   NotebookPenIcon,
   PencilRulerIcon,
-  PrinterIcon,
-  PyramidIcon,
   Rotate3dIcon,
   RouteIcon,
   RulerIcon,
@@ -29,14 +24,11 @@ import {
   ScissorsIcon,
   ShoppingCartIcon,
   SpoolIcon,
-  SprayCanIcon,
   SyringeIcon,
   TargetIcon,
   TruckIcon,
-  UnfoldVerticalIcon,
   VideoIcon,
   WeightIcon,
-  ZapIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -46,8 +38,8 @@ import { DISCIPLINE_ICONS, KIND_ICONS, MENU_ICONS } from "./kinds";
 /**
  * Each job's own picture on its Toolbox tile, by job id (`HARDWARE_ACTIONS`), so the tiles in a
  * section read as different tools. A job's picture says the one thing it is about (a weight for
- * mass, a spool for FDM, a folded and an unfolded sheet for a sheet metal check and its flat
- * pattern); the same idea keeps the same picture across sections (a timer for anything "over
+ * mass, a spool for FDM, a folded sheet for a sheet metal check and scissors for its cut file);
+ * the same idea keeps the same picture across sections (a timer for anything "over
  * time", a truck for an order, a route for a toolpath). The robot face is the AI agent's, so the
  * robot descriptions take Robotics' joints.
  */
@@ -58,23 +50,17 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   fit: RulerIcon,
   motion: Rotate3dIcon,
   mass: WeightIcon,
-  // Results
-  "fea-results": ChartColumnIcon,
-  "cam-results": RouteIcon,
   // Manufacture: printing, one picture per way of printing
   fdm: SpoolIcon,
   slice: LayersIcon,
-  bambu: PrinterIcon,
   resin: DropletIcon,
-  sls: ScanLineIcon,
-  mjf: SprayCanIcon,
+  powder: ScanLineIcon,
   "metal-print": AnvilIcon,
   // CNC machining
   cnc: DrillIcon,
   toolpaths: RouteIcon,
   // Sheet metal
   "sheet-metal": FoldVerticalIcon,
-  "flat-pattern": UnfoldVerticalIcon,
   // Laser and waterjet cutting
   dxf: ScissorsIcon,
   sendcutsend: TruckIcon,
@@ -82,12 +68,10 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   molding: SyringeIcon,
   // Files and off-the-shelf parts
   "standard-parts": ShoppingCartIcon,
-  "export-step": FileBoxIcon,
-  "export-mesh": PyramidIcon,
+  export: FileBoxIcon,
   // Circuit board: its checks, then its files (a board's STEP is a box, the part's STEP a file)
-  "board-drc": KIND_ICONS.Electronics,
+  "board-check": KIND_ICONS.Electronics,
   "board-review": ClipboardCheckIcon,
-  "schematic-erc": ZapIcon,
   "board-fab": FileStackIcon,
   "board-step": BoxIcon,
   // Document
@@ -101,9 +85,7 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   "motion-video": VideoIcon,
   "test-plan": FlaskConicalIcon,
   "write-up": NotebookPenIcon,
-  urdf: DISCIPLINE_ICONS.Robotics,
-  sdf: GlobeIcon,
-  srdf: Move3dIcon,
+  "robot-files": DISCIPLINE_ICONS.Robotics,
 };
 
 /** The jobs with a picture of their own, by id: the test holds each to a real job. */
@@ -113,7 +95,6 @@ export const JOB_ICON_IDS: ReadonlyArray<string> = Object.keys(JOB_ICONS);
 const SECTION_ICONS: Partial<Record<string, LucideIcon>> = {
   simulation: DumbbellIcon,
   "fit-mass": RulerIcon,
-  results: ChartColumnIcon,
   "board-checks": KIND_ICONS.Electronics,
   printing: SpoolIcon,
   machining: DrillIcon,

@@ -1185,18 +1185,6 @@ def turned(mesh, angle, axis, point):
     return moved
 
 
-def visible_faces(picture: dict, mesh, faces, bias: float = 0.3) -> np.ndarray:
-    """Which of `faces` show in the picture: their middles are not behind anything."""
-    camera, depth = picture["camera"], picture["depth"]
-    middles = camera.project(mesh.triangles_center[faces])
-    shown = []
-    for face, (x, y, d) in zip(faces, middles):
-        px, py = int(x * OVER), int(y * OVER)
-        inside = 0 <= px < depth.shape[1] and 0 <= py < depth.shape[0]
-        shown.append(inside and depth[py, px] + bias >= d)
-    return np.asarray(faces)[np.asarray(shown, dtype=bool)]
-
-
 def arrow(marks: Marks, start, end, tone="hue", width=3.4, head=11.0) -> None:
     """A picture-space arrow from `start` to `end`, its head filled."""
     start, end = np.asarray(start, dtype=float), np.asarray(end, dtype=float)
@@ -1273,21 +1261,6 @@ def cover_motion_video():
         marks.add(line_path([(x - 9, y - 14), (x - 9, y + 14), (x + 15, y)], closed=True), "ground")
 
     return model(parts, camera, hook)
-
-
-def cover_stress_peak():
-    """The study's result, its highest stress ringed where the result puts it."""
-    mesh, colours, u = stress_result()
-    peak = mesh.vertices[int(np.argmax(u))]
-    camera = mount_camera()
-
-    def hook(picture, marks):
-        x, y, _ = camera.project(peak)[0]
-        marks.add(circle_path(x, y, 18), "ink", 4.0)
-        marks.line([(x + 13, y - 13), (x + 64, y - 64), (x + 130, y - 64)], "ink", 3.0)
-        marks.bar(x + 72, y - 92, 58, 12, "ink", 0.72)
-
-    return model([Part(mesh, colours=colours)], camera, hook)
 
 
 def cover_fea():
@@ -1387,31 +1360,6 @@ def cover_print3d():
     return model(parts, camera)
 
 
-def bambu_volume():
-    preset = json.loads((SAMPLES / "phone-stand" / "manufacturing" / "presets" / "printer.json").read_text(encoding="utf-8"))
-    corners = np.array([[float(v) for v in corner.split("x")] for corner in preset["printable_area"]])
-    return corners.min(axis=0), corners.max(axis=0), float(preset["printable_height"])
-
-
-def cover_bambu():
-    """The phone stand on the middle of the Bambu Lab P1S's plate, inside the printer's real build
-    volume, from the example's printer preset."""
-    (x0, y0), (x1, y1), height = bambu_volume()
-    mesh = stand_mesh().copy()
-    low, high = mesh.bounds
-    mesh.apply_translation(((x0 + x1) / 2 - (low[0] + high[0]) / 2, (y0 + y1) / 2 - (low[1] + high[1]) / 2, -low[2]))
-    plate = plate_mesh((x0, y0, -4), (x1, y1, 0))
-    box_low, box_high = (x0, y0, 0), (x1, y1, height)
-    camera = Camera().fit(np.array([box_low, box_high, (x0, y1, height), (x1, y0, 0), (x0, y0, -4)]), SAFE)
-
-    def hook(picture, marks):
-        for start, end in box_edges(box_low, box_high):
-            for run in seen_runs(picture, [start, end]):
-                marks.line(run, "hue", 2.6, 0.85)
-
-    return model([Part(plate, PLATE, flat=True), Part(mesh, CLIP, layers=LAYER * 30)], camera, hook)
-
-
 def cover_resin():
     """The horn adapter as a resin printer makes it: upside down, hanging from the plate on
     supports. An illustration: no slicer has run."""
@@ -1481,42 +1429,6 @@ def cover_sls():
                 marks.line(run, "hue", 2.6, 0.85)
 
     return model([Part(smoothed(copy), CLIP) for copy in copies], camera, hook)
-
-
-def cover_mjf():
-    """One layer of an MJF build from above: the cable clips' and the horn adapters' real outlines
-    at that height, where the fusing agent goes, on the powder bed."""
-    from shapely.geometry import Polygon
-
-    clips = batch(clip_solid(), 3, 2, 1, 3.0)
-    adapters = []
-    for column in range(2):
-        copy = adapter_mesh().copy()
-        low, high = copy.bounds
-        size = high - low
-        copy.apply_translation(-low + (column * (size[0] + 3.0), -size[1] - 4.0, 0))
-        adapters.append(copy)
-    meshes = clips + adapters
-    points = np.vstack([mesh.vertices for mesh in meshes])
-    low, high = points.min(axis=0) - 4, points.max(axis=0) + 4
-    bed = plate_mesh((low[0], low[1], -2), (high[0], high[1], 0))
-    camera = Camera((0, 0, 1), (0, 1, 0)).fit(np.vstack([bed.vertices]), SAFE)
-
-    def hook(picture, marks):
-        shapes = []
-        for mesh in meshes:
-            mlow, mhigh = mesh.bounds
-            section = mesh.section(plane_origin=[0, 0, mlow[2] + (mhigh[2] - mlow[2]) * 0.4], plane_normal=[0, 0, 1.0])
-            if section is None:
-                continue
-            for loop in section.discrete:
-                flat = camera.project(loop)[:, :2]
-                if Polygon(flat).area > 4:
-                    shapes.append(line_path(simplified(flat.tolist(), 0.3), closed=True))
-        marks.add("".join(shapes), "hue", None, 0.85)
-        marks.add("".join(shapes), "ink", 2.0, 0.6)
-
-    return model([Part(bed, POWDER, flat=True)], camera, hook)
 
 
 def cover_molding():
@@ -1613,46 +1525,6 @@ def cover_step():
     return model(mount_parts(only=("servo_bracket",)), camera, hook)
 
 
-def cover_sdf():
-    """The mount as Gazebo shows it: standing in a world on its ground grid."""
-    points = mount_points()
-    low, high = points.min(axis=0), points.max(axis=0)
-    centre = (low + high) / 2
-    reach = max(high[0] - low[0], high[1] - low[1]) * 0.95
-    camera = Camera().fit(np.vstack([points, [(centre[0] - reach, centre[1] - reach, low[2]), (centre[0] + reach, centre[1] + reach, low[2])]]), SAFE)
-
-    def hook(picture, marks):
-        for t in np.linspace(-reach, reach, 9):
-            for line in (
-                [(centre[0] + t, centre[1] - reach, low[2]), (centre[0] + t, centre[1] + reach, low[2])],
-                [(centre[0] - reach, centre[1] + t, low[2]), (centre[0] + reach, centre[1] + t, low[2])],
-            ):
-                for run in seen_runs(picture, line, bias=0.3):
-                    marks.line(run, "hue", 2.0, 0.55)
-
-    return model(mount_parts(), camera, hook)
-
-
-def cover_srdf():
-    """The SRDF's planning group, the horn, and its three named states: home and the ends of its
-    real travel."""
-    origin, axis, lower, upper = horn_joint()
-    parts = mount_parts(0.42, skip=("horn_adapter",)) + mount_parts(only=("horn_adapter",))
-    camera = mount_camera()
-
-    def hook(picture, marks):
-        adapter = flat_shape(mount()["horn_adapter"], camera, 0.4)
-        marks.add(shape_path(adapter), "hue", None, 0.4)
-        sweep = camera.project(arc(origin, 22, lower, upper, height=6))[:, :2]
-        marks.line(sweep.tolist(), "hue", 2.4, dash="6 6")
-        for angle in (lower, 0.0, upper):
-            x, y, _ = camera.project(arc(origin, 22, angle, angle, height=6, steps=1))[0]
-            marks.add(circle_path(x, y, 10), "hue")
-            marks.add(circle_path(x, y, 4), "ground")
-
-    return model(parts, camera, hook)
-
-
 def cover_robot():
     """The URDF's tree as the file gives it: each link a box, each joint a ring between them."""
     root = robot_file("servo_mount.urdf")
@@ -1680,36 +1552,11 @@ def cover_robot():
     return done(cover, marks)
 
 
-def cover_cam_results():
-    """The CAM job's report: its picture, its verdict, and a line for each real finding, in its
-    severity's colour."""
-    result = json.loads((SERVO / "cam" / "horn_adapter" / "result.json").read_text(encoding="utf-8"))
-    tones = {"error": "fail", "warning": "warning"}
-    cover, marks = sheet()
-    y = title(marks)
-    size = 128
-    marks.add(rect_path(LEFT, y, INNER_W, size, 5), "ink", None, 0.06)
-    marks.inset("toolpaths", LEFT + (INNER_W - size * 1.4) / 2, y, size * 1.4, size)
-    y += size + 14
-    status = result["measurements"]["verdict"]["status"]
-    marks.add(circle_path(LEFT + 8, y + 6, 7), "pass" if status == "ready" else "fail")
-    marks.bar(LEFT + 24, y + 2, INNER_W * 0.6, 8, "ink", 0.6)
-    y += 26
-    findings = result["findings"]
-    height = (BOTTOM - y) / max(len(findings), 1)
-    for index, finding in enumerate(findings):
-        middle = y + index * height + height / 2
-        marks.add(circle_path(LEFT + 8, middle, 6), tones.get(finding["severity"], "ink"))
-        marks.bar(LEFT + 24, middle - 3, INNER_W * (0.8 - 0.07 * (index % 3)), 6, "ink", 0.26)
-    return done(cover, marks)
-
-
 # Circuit boards: Jake's orbit clock (text-to-cad/models/electronics/orbit_clock), from its real
 # KiCad files.
 
 ORBIT = ROOT / "text-to-cad" / "models" / "electronics" / "orbit_clock"
 BOARD = (156, 166, 152)
-POWDER = (206, 209, 213)
 COPPER_TOP, COPPER_BOTTOM = "F.Cu", "B.Cu"
 
 
@@ -1974,46 +1821,6 @@ def cover_board_review():
     return done(cover, marks)
 
 
-def cover_schematic():
-    """The orbit clock's hour LEDs' sheet as its file draws it: its real wires, parts and junctions."""
-    tree = sexpr((ORBIT / "hours.kicad_sch").read_text(encoding="utf-8"))
-    wires = [[xy(point) for point in children(child(node, "pts"), "xy")] for node in children(tree, "wire")]
-    junctions = [xy(child(node, "at")) for node in children(tree, "junction")]
-    symbols = [xy(child(node, "at")) for node in children(tree, "symbol") if child(node, "lib_id") is not None]
-    points = np.vstack([np.vstack(wire) for wire in wires] + ([np.vstack(symbols)] if symbols else []))
-    part = np.array([2.6, 3.8])
-    if np.ptp(points[:, 0]) > np.ptp(points[:, 1]):
-        # A wide sheet stands on the portrait page a quarter turn round.
-        def turn(point):
-            return np.array([-point[1], point[0]])
-
-        wires = [[turn(point) for point in wire] for wire in wires]
-        junctions = [turn(point) for point in junctions]
-        symbols = [turn(point) for point in symbols]
-        points = np.vstack([np.vstack(wire) for wire in wires] + ([np.vstack(symbols)] if symbols else []))
-        part = part[::-1]
-    low, high = points.min(axis=0) - part, points.max(axis=0) + part
-    cover, marks = sheet()
-    top = title(marks) + 6
-    box = (LEFT, top, INNER_W, BOTTOM - top)
-    scale = min(box[2] / (high[0] - low[0]), box[3] / (high[1] - low[1]))
-    offset = np.array([box[0] + (box[2] - (high[0] - low[0]) * scale) / 2, box[1] + (box[3] - (high[1] - low[1]) * scale) / 2])
-
-    def place(point):
-        return (point[0] - low[0]) * scale + offset[0], (high[1] - point[1]) * scale + offset[1]
-
-    for wire in wires:
-        marks.line([place(point) for point in wire], "ink", 2.2, 0.75)
-    w, h = part * scale
-    for symbol in symbols:
-        x, y = place(symbol)
-        marks.add(rect_path(x - w / 2, y - h / 2, w, h, 2), "hue", 2.4)
-    for junction in junctions:
-        x, y = place(junction)
-        marks.add(circle_path(x, y, 3.4), "ink")
-    return done(cover, marks)
-
-
 # The covers, by name. A later cover's sheet can inset an earlier one's picture.
 COVERS = {
     "bracket": cover_bracket,
@@ -2044,30 +1851,23 @@ COVERS = {
     "design-review": cover_design_review,
     "clearance": cover_clearance,
     "motion-video": cover_motion_video,
-    "stress-peak": cover_stress_peak,
     "fea": cover_fea,
     "cam": cover_cam,
     "cnc": cover_cnc,
     "fdm": cover_fdm,
     "print3d": cover_print3d,
-    "bambu": cover_bambu,
     "resin": cover_resin,
     "metal-print": cover_metal_print,
     "sls": cover_sls,
-    "mjf": cover_mjf,
     "molding": cover_molding,
     "flat-pattern": cover_flat_pattern,
     "step": cover_step,
-    "sdf": cover_sdf,
-    "srdf": cover_srdf,
     "robot": cover_robot,
-    "cam-results": cover_cam_results,
     "board": cover_board,
     "board-step": cover_board_step,
     "board-fab": cover_board_fab,
     "board-drc": cover_board_drc,
     "board-review": cover_board_review,
-    "schematic": cover_schematic,
 }
 
 

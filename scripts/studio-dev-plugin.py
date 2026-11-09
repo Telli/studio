@@ -57,7 +57,7 @@ def main(argv: list[str]) -> int:
         # Codex's layout: its manifest carries the plugin's icon and starter prompts.
         plugin = root / "plugins" / name
         dev_install.assemble("codex", plugin, version, server, rewrites=rewrites)
-        # Studio's job skills beside text-to-cad's ($urdf, $bambu, $fdm: scripts/studio_job_skills.py).
+        # Studio's job skills beside text-to-cad's ($fdm, $export, $board-fab: scripts/studio_job_skills.py).
         add_job_skills(plugin)
         dev_install.write_json(root / ".claude-plugin" / "marketplace.json", {
             "name": "text-to-cad-studio-dev",

@@ -1,7 +1,7 @@
 """Studio's job skills (studio-job-skills/), added to the text-to-cad plugin Studio lays out.
 
 Each job of a text-to-cad skill that does more than one is a skill of its own, so a person can call
-one by name in the chat ($urdf, $bambu, $fdm). Its files are written from Studio's job list
+one by name in the chat ($fdm, $export, $board-fab). Its files are written from Studio's job list
 (apps/web/src/components/workbench/jobSkills.ts) and each only hands off to the text-to-cad skill
 that does the job. They live outside text-to-cad/, which holds only Jake's skills, and join its
 skills in the plugin's own folder: scripts/studio-dev-plugin.py and scripts/studio-app-plugin.py

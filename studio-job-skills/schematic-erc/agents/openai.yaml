@@ -1,4 +1,0 @@
-interface:
-  display_name: "Electrical rule check"
-  short_description: "KiCad's electrical rule check, each finding with the part or net and the fix."
-  default_prompt: "Use $schematic-erc to run the electrical rule check on the schematic and tell me each problem, the part or net it is on, and how to fix it."

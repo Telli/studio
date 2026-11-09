@@ -33,7 +33,7 @@ const TILES = [
 
 describe("library covers", () => {
   it("shows every tile on the Toolbox page its own cover, so no two read alike", () => {
-    expect(SKILLS).toContain("skill:text-to-cad/urdf");
+    expect(SKILLS).toContain("skill:text-to-cad/fdm");
     expect(SKILLS).toContain("skill:text-to-cad/pcb");
     const seen = new Map<string, string>();
     for (const id of TILES) {

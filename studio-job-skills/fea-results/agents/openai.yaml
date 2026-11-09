@@ -1,4 +1,0 @@
-interface:
-  display_name: "Explain these results"
-  short_description: "A walk through the results: what fails, by how much, and what to change."
-  default_prompt: "Use $fea-results to walk me through the results in the study and tell me what fails, by how much, and what to change."

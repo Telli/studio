@@ -1,4 +1,0 @@
-interface:
-  display_name: "Design rule check"
-  short_description: "KiCad's design rule check, each finding with where it is on the board and the fix."
-  default_prompt: "Use $board-drc to run the design rule check on the board and tell me each problem, where it is, and how to fix it."

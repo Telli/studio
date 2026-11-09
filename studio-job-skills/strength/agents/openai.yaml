@@ -1,4 +1,0 @@
-interface:
-  display_name: "Strength under load"
-  short_description: "A study with the stress plot, the peak stress, the safety factor and a pass or fail."
-  default_prompt: "Use $strength to check the part for strength under its working load. Ask me for the loads, supports and material you need, then tell me where it is weakest and what to change."

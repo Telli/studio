@@ -1,4 +1,0 @@
-interface:
-  display_name: "STEP"
-  short_description: "A STEP file, saved beside the part."
-  default_prompt: "Use $export-step to export the part as STEP."

@@ -111,7 +111,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "print",
     discipline: "Manufacturing",
-    label: "Slice for FDM",
+    label: "Slice and print",
     description: "Sliced G-code for an FDM printer, checked before it prints.",
     skill: "print3d",
     source: "from-part",
@@ -121,7 +121,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "cut-file",
     discipline: "Manufacturing",
-    label: "Cut-ready DXF",
+    label: "Flat pattern DXF",
     description: "A DXF for laser, waterjet or plasma cutting.",
     skill: "cad",
     source: "from-part",

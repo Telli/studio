@@ -16,22 +16,20 @@ describe("hardware actions", () => {
         "3D printing",
         [
           "Check for FDM printing",
-          "Slice for FDM",
-          "Print on a Bambu printer",
+          "Slice and print",
           "Check for resin printing",
-          "Check for SLS printing",
-          "Check for MJF printing",
+          "Check for powder printing",
           "Check for metal printing",
         ],
       ],
-      ["Files and off-the-shelf parts", ["Off-the-shelf parts", "STEP", "STL and 3MF"]],
+      ["Files and off-the-shelf parts", ["Off-the-shelf parts", "Export"]],
     ]);
     expect(titled(manufacture!.others)).toEqual([
       [
         "Machining and molding",
         ["Check for CNC machining", "G-code for CNC", "Check for injection molding"],
       ],
-      ["Sheet metal and cutting", ["Check as sheet metal", "Flat pattern DXF", "Cut-ready DXF"]],
+      ["Sheet metal and cutting", ["Check as sheet metal", "Flat pattern DXF"]],
     ]);
     expect(manufacture!.moreLabel).toBe("Other ways to make it");
   });
@@ -40,7 +38,7 @@ describe("hardware actions", () => {
     const manufacture = menu("Manufacture", "Part", ["cad"], "CNC machining");
     expect(titled(manufacture!.sections)).toEqual([
       ["Machining and molding", ["Check for CNC machining", "Check for injection molding"]],
-      ["Files and off-the-shelf parts", ["Off-the-shelf parts", "STEP", "STL and 3MF"]],
+      ["Files and off-the-shelf parts", ["Off-the-shelf parts", "Export"]],
     ]);
     expect(menu("Manufacture", "Board", ["cad"])).toBeUndefined();
   });
@@ -88,9 +86,7 @@ describe("hardware actions", () => {
       ["Pictures and video", ["Pictures from every side", "Motion video"]],
       ["Reports", ["Test plan", "Write up the results"]],
     ]);
-    expect(titled(document!.others)).toEqual([
-      ["Robot description", ["URDF", "SDF for Gazebo", "SRDF for MoveIt"]],
-    ]);
+    expect(titled(document!.others)).toEqual([["Robot description", ["Robot files"]]]);
   });
 
   it("gives a mesh only the printing methods", () => {
@@ -101,10 +97,10 @@ describe("hardware actions", () => {
 
   it("gives a board and its schematic their checks and files, and nothing else", () => {
     expect(titled(menu("Evaluate", "Board", ["pcb", "cad"])!.sections)).toEqual([
-      ["Circuit board", ["Design rule check", "Review before ordering"]],
+      ["Circuit board", ["Board checks", "Review before ordering"]],
     ]);
     expect(titled(menu("Evaluate", "Schematic", ["pcb"])!.sections)).toEqual([
-      ["Circuit board", ["Electrical rule check"]],
+      ["Circuit board", ["Board checks"]],
     ]);
     expect(titled(menu("Manufacture", "Board", ["pcb", "cad"])!.sections)).toEqual([
       ["Circuit board", ["Fabrication files", "Board STEP"]],

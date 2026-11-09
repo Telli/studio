@@ -59,7 +59,7 @@ def main(argv: list[str]) -> int:
     }
     plugin = out / "plugins" / name
     dev_install.assemble("codex", plugin, version, server, root=checkout, rewrites=rewrites)
-    # Studio's job skills beside text-to-cad's ($urdf, $bambu, $fdm: scripts/studio_job_skills.py).
+    # Studio's job skills beside text-to-cad's ($fdm, $export, $board-fab: scripts/studio_job_skills.py).
     add_job_skills(plugin)
     dev_install.write_json(out / ".claude-plugin" / "marketplace.json", {
         "name": "studio-app",

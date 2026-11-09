@@ -801,9 +801,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   on a second press. The composer's / menu offers Studio's own commands in plain words and the
   skills, not the agent's coding commands.
 - **Each job is a skill of its own.** Every job of a text-to-cad skill that does more than one
-  (CAD's checks and exports, 3D Printing's Slice and Bambu, CAM, Simulation, PCB and Robot
-  simulation's URDF, SDF and SRDF) is also a skill, named by its job's id, so it can be called in
-  the chat (`$urdf`, `$bambu`, `$fdm`) and has its own cover on the Toolbox page, on its menu's
+  (CAD's checks and exports, and PCB's checks and files) is also a skill, named by its job's id,
+  so it can be called in
+  the chat (`$fdm`, `$export`, `$board-fab`) and has its own cover on the Toolbox page, on its menu's
   shelf with the cover of the document it makes (Amy, 11/09: more skills, each triggered on its
   own). Each only hands off: it asks for its job as the tile does and sends the agent to the
   text-to-cad skill that does it. Its files, `studio-job-skills/`, are written from the jobs

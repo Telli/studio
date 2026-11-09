@@ -49,7 +49,7 @@ typecheck and the tests on every push to `main` and every change request.
 13. **Every one of Jake's skills is in Studio.** Each skill in Jake's text-to-cad ships in the app
     and has its own tile in the Toolbox, with what it does, something to try and at least one job.
     A skill Jake adds comes into Studio with its tile and jobs, never left for later. Where a
-    skill does more than one job, each job is a skill of its own too (`$urdf`, `$bambu`), with its
+    skill does more than one job, each job is a skill of its own too (`$fdm`, `$board-fab`), with its
     own tile, so each can be called on its own.
     _Tests: `apps/web/src/components/workbench/library/toolboxSkills.test.ts` for the Toolbox,
     `apps/web/src/components/workbench/jobSkills.test.ts` for the job skills, the
