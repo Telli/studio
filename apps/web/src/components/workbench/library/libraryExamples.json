@@ -12,7 +12,7 @@
     "example": "drawings/servo_bracket_drawing.pdf"
   },
   "doc:simulation": {
-    "example": "studies/servo_bracket.fea.glb"
+    "example": "studies/servo_bracket/result.glb"
   },
   "doc:fit-mass": {
     "example": "assemblies/servo_mount_fit.md"
@@ -21,7 +21,7 @@
     "example": "parts/servo_bracket_sheet_metal.md"
   },
   "doc:cam-job": {
-    "example": "cam/horn_adapter.cam.glb"
+    "example": "cam/horn_adapter/result.glb"
   },
   "doc:print": null,
   "doc:pmi": {
@@ -82,13 +82,13 @@
     "example": "parts/servo_bracket.py"
   },
   "skill:text-to-cad/cam": {
-    "example": "cam/horn_adapter.cam.glb"
+    "example": "cam/horn_adapter/result.glb"
   },
   "skill:text-to-cad/engineering-drawing": {
     "example": "drawings/servo_bracket_drawing.pdf"
   },
   "skill:text-to-cad/fea": {
-    "example": "studies/servo_bracket.fea.glb"
+    "example": "studies/servo_bracket/result.glb"
   },
   "skill:text-to-cad/pcb": null,
   "skill:text-to-cad/print3d": null,

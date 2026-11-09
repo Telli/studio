@@ -49,9 +49,9 @@ def main() -> int:
     bundle = Path(sys.argv[1]).resolve()
     python = python_of(bundle)
     samples = bundle / "sample"
-    # Each study beside the answer the example ships with (`<name>.fea.json`), which names the document it solved.
-    studies = sorted(study for study in samples.glob("*/studies/*.study.json")
-                     if study.with_name(study.name.replace(".study.json", ".fea.json")).is_file())
+    # Each study beside the answer the example ships with, the folder its solve wrote (`<name>/result.json`), which
+    # names the document it solved.
+    studies = sorted(study for study in samples.glob("*/studies/*.study.json") if shipped_answer(study).is_file())
     for needed in (python, samples / SAMPLE / PART):
         if not needed.is_file():
             print(f"FAIL the app carries no {needed}", file=sys.stderr)
@@ -113,10 +113,9 @@ def main() -> int:
                 failed += rebuilt_as_shipped(project, samples / project.name, home / "compared", cad_command)
             for study in studies:
                 project = home / "sample" / study.parent.parent.name
-                shipped = json.loads(study.with_name(study.name.replace(".study.json", ".fea.json"))
-                                     .read_text(encoding="utf-8"))
+                shipped = json.loads(shipped_answer(study).read_text(encoding="utf-8"))
                 # text-to-cad 0.11's `cad <type> solve`, its results written into a folder of their own.
-                document = shipped["document"]
+                document = shipped["path"]
                 solved = cad_command("cad_server.cli", SOLVED_TYPES[Path(document).suffix.lower()], "solve",
                                      document, "--study", str(study.relative_to(study.parent.parent)),
                                      "--out", str(home / "solved" / project.name), "--json", cwd=project,
@@ -126,6 +125,12 @@ def main() -> int:
         finally:
             subprocess.run([str(python), "-P", "-m", "cad_server.cli", "stop"], env=env, capture_output=True,
                            timeout=60)
+
+
+def shipped_answer(study: Path) -> Path:
+    """The answer an example ships for a study: the folder its solve wrote, named for the study
+    (`studies/bracket.study.json` beside `studies/bracket/result.json`)."""
+    return study.with_name(study.name.removesuffix(".study.json")) / "result.json"
 
 
 def rebuilt_as_shipped(project: Path, shipped: Path, compared: Path, cad_command) -> int:
@@ -171,12 +176,11 @@ def step_difference(result: dict, relative: Path) -> str | None:
 
 def held_to_shipped(name: str, stdout: str, shipped: dict) -> int:
     """The solve's answer beside the example's: forces in balance, stress near the shipped run's, the same verdicts.
-    The solve's numbers are its `measurements` (text-to-cad 0.11's `result.json`); the example's answer was saved by
-    0.10, whose `summary` held them."""
+    Both are text-to-cad 0.11's `result.json`, whose numbers are its `measurements`."""
     line = next((line for line in reversed(stdout.splitlines()) if line.startswith("{")), "")
     result = json.loads(line) if line else {}
     summary = result.get("measurements") or {}
-    expected = shipped.get("measurements") or shipped["summary"]
+    expected = shipped["measurements"]
     problems = []
     applied, reaction = summary.get("applied_force_N"), summary.get("reaction_force_N")
     if not applied or not reaction or any(abs(a + r) > 0.01 * max(1.0, abs(a)) for a, r in zip(applied, reaction)):

@@ -460,7 +460,7 @@ describe("check results", () => {
 
   it("leaves a copied example's check unmarked: its model has never been built", () => {
     const copied = parseCheckResult(
-      "studies/servo_bracket.fea.json",
+      "studies/servo_bracket/result.json",
       JSON.stringify({ document: "parts/servo_bracket.step", findings: [] }),
       "2026-11-06T09:00:00.000Z",
     )!;

@@ -383,7 +383,7 @@ describe("library catalog", () => {
       NodePath.join(SAMPLES, "motor-mount", "parts", "motor_plate.py"),
       "utf8",
     );
-    expect(plate).toMatch(/from cadgen\.ap242 import/);
+    expect(plate).toMatch(/from cad\.build123d import \(annotate,/);
     expect(plate).toMatch(/annotate\(/);
   });
 });

@@ -11,9 +11,9 @@ from pathlib import Path
 import math
 
 import build123d as bd
-from cadgen import model, read_step
-from cadgen.ap242 import configuration_sequence
-from cadgen.mates import Coincident, Concentric, mate
+from cad import model, step
+from cad.build123d import configuration_sequence
+from cad.mates import Coincident, Concentric, mate
 
 PARTS = Path(__file__).resolve().parent.parent / "parts"
 sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, each built in this run with its own document
@@ -54,7 +54,7 @@ def servo_mount():
     )
     tab_top = servo.faces().filter_by(bd.Axis.Z).group_by(bd.Axis.Z)[2][0]
 
-    screw = read_step(SCREW)
+    screw = step.read(SCREW)
     screws = []
     for end, holes in (("output_end", tapped.sort_by(bd.Axis.X)[-2:]), ("other_end", tapped.sort_by(bd.Axis.X)[:2])):
         for side, hole in zip(("back", "front"), holes.sort_by(bd.Axis.Y)):

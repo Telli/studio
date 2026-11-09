@@ -421,11 +421,14 @@ def glb_up(points) -> np.ndarray:
 
 
 def stress_part() -> Part:
-    """The study's result mesh with the colours the study wrote on it (COLOR_0)."""
+    """The study's result mesh with the colours the study gave it: each point's place on the result's own
+    colour ramp (TEXCOORD_0's u), read off the ramp picture the GLB carries."""
+    import io
+
     import pygltflib
     import trimesh
 
-    glb = pygltflib.GLTF2().load(str(SERVO / "studies" / "servo_bracket.fea.glb"))
+    glb = pygltflib.GLTF2().load(str(SERVO / "studies" / "servo_bracket" / "result.glb"))
     blob = glb.binary_blob()
 
     def accessor(index: int) -> np.ndarray:
@@ -440,12 +443,12 @@ def stress_part() -> Part:
     primitive = glb.meshes[0].primitives[0]
     vertices = glb_up(accessor(primitive.attributes.POSITION))
     faces = accessor(primitive.indices).reshape(-1, 3)
-    colours = accessor(primitive.attributes.COLOR_0).astype(float)
-    if colours.max() > 1.5:
-        colours = colours / (65535 if colours.max() > 255 else 255)
-    colours = colours[:, :3]
-    # glTF colours are linear; the picture is sRGB.
-    colours = np.where(colours <= 0.0031308, colours * 12.92, 1.055 * np.power(colours, 1 / 2.4) - 0.055) * 255
+    ramp_view = glb.bufferViews[glb.images[0].bufferView]
+    start = ramp_view.byteOffset or 0
+    with Image.open(io.BytesIO(blob[start:start + ramp_view.byteLength])) as picture:
+        ramp = np.asarray(picture.convert("RGB"), dtype=float)[0]  # one row, sRGB already
+    u = accessor(primitive.attributes.TEXCOORD_0)[:, 0]
+    colours = ramp[np.clip(np.rint(u * (len(ramp) - 1)).astype(int), 0, len(ramp) - 1)]
     mesh = trimesh.Trimesh(vertices, faces, process=False)
     return Part(mesh, colours=colours)
 
@@ -454,7 +457,7 @@ def cam_job():
     """The horn adapter's CAM job: its part, its stock, and the top setup's cutting moves."""
     import trimesh
 
-    scene = trimesh.load(SERVO / "cam" / "horn_adapter.cam.glb", process=False)
+    scene = trimesh.load(SERVO / "cam" / "horn_adapter" / "result.glb", process=False)
     part = scene.geometry["part"]
     mesh = trimesh.Trimesh(glb_up(part.vertices), part.faces, process=True)
     stock = glb_up(scene.geometry["stock"].vertices)
