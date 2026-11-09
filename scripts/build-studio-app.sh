@@ -177,6 +177,10 @@ done
 step "Laying out the CAD plugin"
 text_to_cad="$(tr -d '[:space:]' <"$CAD/VERSION")"
 "$bundle_python" "$(native "$ROOT/scripts/studio-app-plugin.py")" "$(native "$CAD")" "$(native "$BUNDLE/marketplace")"
+# Studio's law 13 (AGENTS.md): every skill of text-to-cad's ships in the app.
+skills_of() { find "$1" -mindepth 2 -maxdepth 2 -name SKILL.md | awk -F/ '{print $(NF-1)}' | sort; }
+left_out="$(comm -23 <(skills_of "$CAD/skills") <(skills_of "$BUNDLE"/marketplace/plugins/*/skills))"
+[ -z "$left_out" ] || stop "The app's CAD plugin leaves out text-to-cad's skills: $(echo $left_out)"
 # The Electron profile's folder is named by the app's id, which no other app shares; a folder
 # called "studio" could be any app's of that name.
 # A build sends anonymous usage counts, once the person says yes, to Studio's usage receiver
