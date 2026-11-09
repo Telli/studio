@@ -1,0 +1,4 @@
+interface:
+  display_name: "G-code for CNC"
+  short_description: "G-code for each setup, and its toolpaths to look over before cutting."
+  default_prompt: "Use $toolpaths to plan the toolpaths for the part and post its G-code. Ask me for the machine, stock, tools and workholding you need."

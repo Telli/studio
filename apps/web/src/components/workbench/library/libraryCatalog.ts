@@ -16,6 +16,7 @@ import {
   type HardwareActionGroup,
   MORE_LABELS,
 } from "../hardwareActions";
+import { jobOfSkill } from "../jobSkills";
 import { MENU_WORDS } from "../kinds";
 import { DOCUMENT_TEMPLATES, NEW_TEMPLATES, type NewTemplate } from "../newTemplates";
 import libraryExamples from "./libraryExamples.json";
@@ -561,31 +562,72 @@ export function plainPrompt(prompt: string): string {
     .replace(/\$([a-z][\w-]*)/gi, "$1");
 }
 
-/** Every skill of every installed plugin, on while its plugin is enabled. */
+/**
+ * A job skill's tile (`jobSkills.ts`): the skill that does its job, by the name it shows, and the
+ * example of the document type it makes.
+ */
+function jobTile(name: string) {
+  const job = jobOfSkill(name);
+  if (job === null) return null;
+  return {
+    blurb: `With the ${TEXT_TO_CAD_NAMES[job.skill] ?? chatName(job.skill, null)} skill`,
+    example: exampleOf(entryOfAction(job.id)?.id ?? ""),
+  };
+}
+
+/**
+ * Every skill of every installed plugin, on while its plugin is enabled: text-to-cad's own first,
+ * then Studio's job skills it carries, in the menus' order.
+ */
 export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibrarySkill[] {
   return plugins.flatMap((plugin) =>
-    (plugin.skillDetails ?? []).map((detail): LibrarySkill => {
-      const id = `skill:${plugin.id}/${detail.name}`;
-      const ours = plugin.id === TEXT_TO_CAD;
-      return {
-        kind: "skill",
-        id,
-        pluginId: plugin.id,
-        pluginName: plugin.displayName,
-        name: detail.name,
-        displayName:
-          (ours ? JOB_NAMES[detail.name] : undefined) ?? chatName(detail.name, detail.displayName),
-        description: detail.description,
-        blurb: (ours ? SKILL_BLURBS[detail.name] : undefined) ?? detail.description,
-        tryAsking:
-          (ours ? TRY_ASKING[detail.name] : undefined) ??
-          (detail.defaultPrompt === null ? null : plainPrompt(detail.defaultPrompt)),
-        on: plugin.enabled,
-        ...(ours ? exampleOf(id) : { example: null, exampleIn: null }),
-      };
-    }),
+    (plugin.skillDetails ?? [])
+      .map((detail): LibrarySkill => {
+        const id = `skill:${plugin.id}/${detail.name}`;
+        const ours = plugin.id === TEXT_TO_CAD;
+        const job = ours ? jobTile(detail.name) : null;
+        if (job !== null) {
+          return {
+            kind: "skill",
+            id,
+            pluginId: plugin.id,
+            pluginName: plugin.displayName,
+            name: detail.name,
+            displayName: chatName(detail.name, detail.displayName),
+            description: detail.description,
+            blurb: job.blurb,
+            tryAsking: detail.defaultPrompt === null ? null : plainPrompt(detail.defaultPrompt),
+            on: plugin.enabled,
+            ...job.example,
+          };
+        }
+        return {
+          kind: "skill",
+          id,
+          pluginId: plugin.id,
+          pluginName: plugin.displayName,
+          name: detail.name,
+          displayName:
+            (ours ? JOB_NAMES[detail.name] : undefined) ??
+            chatName(detail.name, detail.displayName),
+          description: detail.description,
+          blurb: (ours ? SKILL_BLURBS[detail.name] : undefined) ?? detail.description,
+          tryAsking:
+            (ours ? TRY_ASKING[detail.name] : undefined) ??
+            (detail.defaultPrompt === null ? null : plainPrompt(detail.defaultPrompt)),
+          on: plugin.enabled,
+          ...(ours ? exampleOf(id) : { example: null, exampleIn: null }),
+        };
+      })
+      .toSorted((a, b) => jobRank(a.name) - jobRank(b.name)),
   );
 }
+
+/** A skill's place among its plugin's: a job skill's in the menus, after every other skill. */
+const jobRank = (name: string) => {
+  const job = jobOfSkill(name);
+  return job === null ? -1 : HARDWARE_ACTIONS.indexOf(job);
+};
 
 /** The menus, in the order Studio shows them. */
 const MENUS = [...new Set(ACTION_SECTIONS.map((section) => section.group))];
@@ -608,6 +650,14 @@ const menuLabels = (group: HardwareActionGroup, skill: string) => [
  * that offers the skill.
  */
 export function showsUpAs(skill: string): ReadonlyArray<string> {
+  // A job skill is its one job: where the menus offer it.
+  const job = jobOfSkill(skill);
+  if (job !== null) {
+    const section = ACTION_SECTIONS.find((candidate) => candidate.id === job.section);
+    return [
+      `${MENU_WORDS[job.group]}: ${section?.more === true ? MORE_LABELS[job.group] : job.label}`,
+    ];
+  }
   const places = [
     {
       place: "New",

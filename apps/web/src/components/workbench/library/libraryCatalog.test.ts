@@ -398,3 +398,49 @@ describe("a skill's own prompt", () => {
     expect(plainPrompt("Make a bracket.")).toBe("Make a bracket.");
   });
 });
+
+describe("Studio's job skills on the Toolbox page (jobSkills.ts)", () => {
+  // text-to-cad's plugin as Studio lays it out: its own skills, then Studio's job skills, each with
+  // its openai.yaml face as studio-job-skills/ writes it.
+  const laidOut = plugin("text-to-cad", true, [
+    detail("print3d"),
+    {
+      name: "bambu",
+      displayName: "Print on a Bambu printer",
+      description: "The print opened in Bambu Connect or Bambu Studio, for you to check and start.",
+      defaultPrompt: "Use $bambu to slice the part and get it ready on my Bambu printer.",
+    },
+    { ...detail("urdf"), displayName: "URDF" },
+    detail("cad"),
+  ]);
+  const tiles = librarySkills([laidOut]);
+  const tileOf = (name: string) => tiles.find((tile) => tile.name === name);
+
+  it("puts text-to-cad's own skills first, then the job skills in the menus' order", () => {
+    expect(tiles.map((tile) => tile.name)).toEqual(["print3d", "cad", "bambu", "urdf"]);
+  });
+
+  it("names a job skill as its job, by the skill that does it, with its job's example", () => {
+    expect(tileOf("bambu")).toMatchObject({
+      displayName: "Print on a Bambu printer",
+      blurb: "With the 3D Printing skill",
+      tryAsking: "Slice the part and get it ready on my Bambu printer.",
+      ...exampleOfEntry("doc:print"),
+    });
+    expect(tileOf("urdf")?.blurb).toBe("With the Robot simulation skill");
+  });
+
+  it("says where its job shows up", () => {
+    expect(showsUpAs("bambu")).toEqual(["Manufacturing: Print on a Bambu printer"]);
+    expect(showsUpAs("urdf")).toEqual(["Documents: More documents"]);
+  });
+});
+
+/** A document type's example, as an entry that shares it shows. */
+function exampleOfEntry(id: string) {
+  const item = (libraryExamples as Record<string, { sample?: string; example: string } | null>)[id];
+  return {
+    example: item?.example ?? null,
+    exampleIn: item === null || item === undefined ? null : (item.sample ?? "servo-bracket"),
+  };
+}

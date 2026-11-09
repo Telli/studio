@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check for MJF printing"
+  short_description: "Findings for MJF printing, each passing, to fix or to check, with the fix."
+  default_prompt: "Use $mjf to check the part for MJF printing: wall thickness, small holes and features, and powder trapped inside. Tell me what to change."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Print on a Bambu printer"
+  short_description: "The print opened in Bambu Connect or Bambu Studio, for you to check and start."
+  default_prompt: "Use $bambu to slice the part and get it ready on my Bambu printer. Check with me before the print starts."

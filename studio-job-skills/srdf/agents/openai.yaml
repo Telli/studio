@@ -1,0 +1,4 @@
+interface:
+  display_name: "SRDF for MoveIt"
+  short_description: "A validated SRDF for MoveIt: planning groups, end effectors and collisions to ignore."
+  default_prompt: "Use $srdf to make a MoveIt SRDF for the assembly: its planning groups, end effectors and the collisions to ignore."

@@ -7,6 +7,7 @@ import type { StudioSample } from "@t3tools/contracts";
 
 import { findExamples } from "../examples/examples";
 import { HARDWARE_ACTIONS } from "../hardwareActions";
+import { jobOfSkill } from "../jobSkills";
 import { holdsWords } from "../quickFind";
 import {
   findItIn,
@@ -92,9 +93,15 @@ const SKILL_GROUPS: Readonly<Record<string, LibraryGroup>> = {
   "work-instructions": "Document",
 };
 
-/** The shelf of a skill; one text-to-cad adds later stands with the part menu of its first job. */
+/**
+ * The shelf of a skill: a job skill's is its job's menu, and one text-to-cad adds later stands with
+ * the part menu of its first job.
+ */
 export const skillGroup = (skill: string): LibraryGroup =>
-  SKILL_GROUPS[skill] ?? HARDWARE_ACTIONS.find((job) => job.skill === skill)?.group ?? "New";
+  SKILL_GROUPS[skill] ??
+  jobOfSkill(skill)?.group ??
+  HARDWARE_ACTIONS.find((job) => job.skill === skill)?.group ??
+  "New";
 
 /**
  * What the search box looks through: an entry's name, what it is, its skills, by their names and

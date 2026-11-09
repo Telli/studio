@@ -1,0 +1,4 @@
+interface:
+  display_name: "Slice for FDM"
+  short_description: "Sliced G-code from OrcaSlicer, checked against your printer and filament."
+  default_prompt: "Use $slice to slice the part for FDM printing and check the G-code."

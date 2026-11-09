@@ -10,7 +10,8 @@ CAD state there. The skills name no version: they run `cad`, the current install
 that one. The plugin's MCP server is `cad-mcp` run by that Python, which reaches the server it
 carries (`cad_mcp.engine`), whose wheel carries the CAD app's page. The layout is a development
 install's (scripts/install/dev_install.py); its channel is "dev", as Studio's own is, which keeps
-the CAD server's update notices and telemetry off.
+the CAD server's update notices and telemetry off. Studio's job skills join its skills
+(scripts/studio_job_skills.py).
 
     python3 scripts/studio-app-plugin.py <text-to-cad checkout> <out folder>
 """
@@ -19,6 +20,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+from studio_job_skills import add_job_skills
 
 PYTHON = "@@STUDIO_PYTHON@@"
 BIN = "@@STUDIO_BIN@@"
@@ -56,6 +59,8 @@ def main(argv: list[str]) -> int:
     }
     plugin = out / "plugins" / name
     dev_install.assemble("codex", plugin, version, server, root=checkout, rewrites=rewrites)
+    # Studio's job skills beside text-to-cad's ($urdf, $bambu, $fdm: scripts/studio_job_skills.py).
+    add_job_skills(plugin)
     dev_install.write_json(out / ".claude-plugin" / "marketplace.json", {
         "name": "studio-app",
         "owner": {"name": "Studio"},

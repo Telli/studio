@@ -800,6 +800,17 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   New's Create does: each prompt asks for what it needs (the loads, the machine), so nothing waits
   on a second press. The composer's / menu offers Studio's own commands in plain words and the
   skills, not the agent's coding commands.
+- **Each job is a skill of its own.** Every job of a text-to-cad skill that does more than one
+  (CAD's checks and exports, 3D Printing's Slice and Bambu, CAM, Simulation, PCB and Robot
+  simulation's URDF, SDF and SRDF) is also a skill, named by its job's id, so it can be called in
+  the chat (`$urdf`, `$bambu`, `$fdm`) and has its own cover on the Toolbox page, on its menu's
+  shelf with the cover of the document it makes (Amy, 11/09: more skills, each triggered on its
+  own). Each only hands off: it asks for its job as the tile does and sends the agent to the
+  text-to-cad skill that does it. Its files, `studio-job-skills/`, are written from the jobs
+  (`components/workbench/jobSkills.ts`; `STUDIO_WRITE_JOB_SKILLS=1` on `jobSkills.test.ts` writes
+  them again after a job changes) and join text-to-cad's skills where Studio lays out its plugin,
+  in dev (`TEXT_TO_CAD_DEV=1`) and in the app (`scripts/studio_job_skills.py`), never inside
+  `text-to-cad/`.
 - **Three kinds, and work done on them.** What is designed is CAD, Electronics or Documents, and
   New offers those. FEA and CAM are not kinds of design but work done on one, for parts and boards
   alike, so what Evaluate, Manufacture and Document make (analysis, manufacturing files,

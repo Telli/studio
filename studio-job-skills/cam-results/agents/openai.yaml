@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explain this job"
+  short_description: "A walk through the job: its cycle time, its tools and what to fix before cutting."
+  default_prompt: "Use $cam-results to walk me through the CAM job and tell me the cycle time, the tools, and anything to fix before cutting."

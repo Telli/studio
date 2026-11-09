@@ -4,7 +4,8 @@ import * as NodePath from "node:path";
 
 import { describe, expect, it } from "vite-plus/test";
 
-import { LIBRARY_DOCUMENTS } from "./libraryCatalog";
+import { JOB_SKILL_JOBS } from "../jobSkills";
+import { entryOfAction, LIBRARY_DOCUMENTS } from "./libraryCatalog";
 import libraryExamples from "./libraryExamples.json";
 import { COVER_SHEET, coverOf, examplePictureOf } from "./libraryPictures";
 import coverFile from "./pictures/covers.json";
@@ -23,6 +24,16 @@ const COVERS = ENTRIES.map((id) => [id, coverOf(id)] as const);
 const NO_COVER = ["doc:circuit-board", "skill:text-to-cad/pcb"];
 
 describe("library covers", () => {
+  it("gives each job skill the cover of the document type its job makes", () => {
+    for (const job of JOB_SKILL_JOBS) {
+      const made = entryOfAction(job.id);
+      expect(made, job.id).not.toBeNull();
+      expect(coverOf(`skill:text-to-cad/${job.id}`), job.id).toEqual(coverOf(made?.id ?? ""));
+    }
+    expect(coverOf("skill:text-to-cad/urdf")).not.toBeNull();
+    expect(coverOf("skill:other/urdf")).toBeNull();
+  });
+
   it("gives every entry a cover, even one the sample has no example of", () => {
     expect(COVERS.filter(([, cover]) => cover === null).map(([id]) => id)).toEqual(NO_COVER);
     for (const [id, cover] of COVERS) {

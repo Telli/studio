@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flat pattern DXF"
+  short_description: "The flat pattern as a DXF, its bend lines on a layer of their own."
+  default_prompt: "Use $flat-pattern to make the flat pattern of the part as a DXF with its bend lines, ready to cut."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "SDF for Gazebo"
+  short_description: "A validated SDF model for Gazebo, with its links, joints and meshes."
+  default_prompt: "Use $sdf to make an SDF model of the assembly for simulating it in Gazebo."

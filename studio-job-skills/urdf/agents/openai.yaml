@@ -1,0 +1,4 @@
+interface:
+  display_name: "URDF"
+  short_description: "A validated URDF with its links, joints, limits and a mesh for each link."
+  default_prompt: "Use $urdf to make a URDF for the part with its links, joints and limits."

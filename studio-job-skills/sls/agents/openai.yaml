@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check for SLS printing"
+  short_description: "Findings for SLS printing, each passing, to fix or to check, with the fix."
+  default_prompt: "Use $sls to check the part for SLS printing: wall thickness, small holes and features, and powder trapped inside. Tell me what to change."

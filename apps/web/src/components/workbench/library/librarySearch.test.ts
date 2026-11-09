@@ -136,6 +136,14 @@ describe("the Toolbox's shelves", () => {
     expect(skillGroup("work-instructions")).toBe("Document");
   });
 
+  it("stands each job skill on the shelf of its job's menu", () => {
+    expect(skillGroup("fdm")).toBe("Manufacture");
+    expect(skillGroup("bambu")).toBe("Manufacture");
+    expect(skillGroup("strength")).toBe("Evaluate");
+    expect(skillGroup("board-drc")).toBe("Evaluate");
+    expect(skillGroup("urdf")).toBe("Document");
+  });
+
   it("files a type no skill makes as a document, not under New", () => {
     expect(documentGroup(doc("doc:prd"))).toBe("Document");
     expect(documentGroup(doc("doc:parts-list"))).toBe("Document");

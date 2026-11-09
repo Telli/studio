@@ -5,7 +5,10 @@
  * everything with a hue is a mark, in a tone `LibraryPicture` draws from the theme.
  */
 
+import { jobOfSkill } from "../jobSkills";
+import { entryOfAction } from "./libraryCatalog";
 import coverFile from "./pictures/covers.json";
+import { TEXT_TO_CAD } from "./skillAvailability";
 
 export interface CoverMark {
   /** `hue` is the entry's shelf's; the others are status, ink and the ground. */
@@ -96,12 +99,21 @@ const ENTRY_COVERS: Readonly<Record<string, string>> = {
   "skill:text-to-cad/work-instructions": "instructions",
 };
 
+/** A job skill's cover is the one of the document type its job makes (`jobSkills.ts`). */
+const jobCover = (entryId: string) => {
+  const prefix = `skill:${TEXT_TO_CAD}/`;
+  if (!entryId.startsWith(prefix)) return undefined;
+  const job = jobOfSkill(entryId.slice(prefix.length));
+  const made = job === null ? null : entryOfAction(job.id);
+  return made === null ? undefined : ENTRY_COVERS[made.id];
+};
+
 /**
  * An entry's cover, by its id. Null for another plugin's skill and for the person's own templates,
  * which `LibraryPicture` draws from the template itself.
  */
 export function coverOf(entryId: string): LibraryCover | null {
-  const name = ENTRY_COVERS[entryId];
+  const name = ENTRY_COVERS[entryId] ?? jobCover(entryId);
   const cover = name === undefined ? undefined : COVERS[name];
   if (name === undefined || cover === undefined) return null;
   return {
