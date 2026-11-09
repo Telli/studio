@@ -215,8 +215,9 @@ cd "$ROOT"
 T3CODE_DESKTOP_SIGNED="$signed" T3CODE_DESKTOP_STUDIO_BUNDLE="$(native "$BUNDLE")" VITE_APP_BASE_NAME=Studio \
   APP_VERSION="$VERSION" T3CODE_BRAND_DIR="$(native "$ROOT/brand")" \
   node scripts/build-desktop-artifact.ts --platform "$platform" --target "$target" --arch "$arch" --build-version "$VERSION"
-# A build whose pages say another version would count every use under the wrong release.
-grep -rqF --include='*.js' "\"$VERSION\"" "$ROOT/apps/server/dist/client/assets" ||
+# A build whose pages say another version would count every use under the wrong release. The
+# minifier writes the version as a template string (`0.1.5`), so either quote counts.
+grep -rqF --include='*.js' -e "\"$VERSION\"" -e "\`$VERSION\`" "$ROOT/apps/server/dist/client/assets" ||
   stop "The app's pages do not say version $VERSION: APP_VERSION did not reach the web build."
 
 if [ "$platform" = win ]; then

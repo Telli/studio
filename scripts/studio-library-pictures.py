@@ -423,6 +423,13 @@ def glb_up(points) -> np.ndarray:
 def stress_part() -> Part:
     """The study's result mesh with the colours the study gave it: each point's place on the result's own
     colour ramp (TEXCOORD_0's u), read off the ramp picture the GLB carries."""
+    mesh, colours, _ = stress_result()
+    return Part(mesh, colours=colours)
+
+
+@lru_cache
+def stress_result():
+    """The study's result mesh, its points' colours, and each point's place on the ramp (0 to 1)."""
     import io
 
     import pygltflib
@@ -450,7 +457,7 @@ def stress_part() -> Part:
     u = accessor(primitive.attributes.TEXCOORD_0)[:, 0]
     colours = ramp[np.clip(np.rint(u * (len(ramp) - 1)).astype(int), 0, len(ramp) - 1)]
     mesh = trimesh.Trimesh(vertices, faces, process=False)
-    return Part(mesh, colours=colours)
+    return mesh, colours, u
 
 
 def cam_job():
@@ -602,18 +609,7 @@ def cover_toolpaths():
 def cover_flags():
     """The real sheet metal check's review findings where they are on the bracket: the web between
     each tapped hole and the cutout, and the bend."""
-    import trimesh
-
-    bracket = trimesh.util.concatenate(mount()["servo_bracket"])
-    section = bracket.section(plane_origin=[0, 0, -1.0], plane_normal=[0, 0, 1.0])
-    loops = [np.asarray(loop) for loop in section.discrete]
-    def across(loop):
-        return np.ptp(loop[:, :2], axis=0)
-    tapped = [loop.mean(axis=0) for loop in loops if np.allclose(across(loop), 2.5, atol=0.15)]
-    if len(tapped) != 4:
-        raise SystemExit(f"expected the bracket's four tapped holes, found {len(tapped)}")
-    cutout = max((loop for loop in loops if np.ptp(loop[:, 1]) > 15 and np.ptp(loop[:, 1]) < 25), key=lambda loop: np.ptp(loop[:, 0]))
-    inner = cutout[:, 0].min(), cutout[:, 0].max()
+    tapped, inner = bracket_holes()
 
     def hook(picture, marks):
         camera = picture["camera"]
@@ -629,6 +625,24 @@ def cover_flags():
         marks.add(line_path(face, closed=True), "warning", None, 0.5)
 
     return model(mount_parts(only=("servo_bracket",)), mount_camera(), hook)
+
+
+@lru_cache
+def bracket_holes():
+    """The bracket's four tapped holes' centres on its top face, and the X span of its cutout."""
+    import trimesh
+
+    bracket = trimesh.util.concatenate(mount()["servo_bracket"])
+    section = bracket.section(plane_origin=[0, 0, -1.0], plane_normal=[0, 0, 1.0])
+    loops = [np.asarray(loop) for loop in section.discrete]
+    def across(loop):
+        return np.ptp(loop[:, :2], axis=0)
+    tapped = [loop.mean(axis=0) for loop in loops if np.allclose(across(loop), 2.5, atol=0.15)]
+    if len(tapped) != 4:
+        raise SystemExit(f"expected the bracket's four tapped holes, found {len(tapped)}")
+    cutout = max((loop for loop in loops if np.ptp(loop[:, 1]) > 15 and np.ptp(loop[:, 1]) < 25), key=lambda loop: np.ptp(loop[:, 0]))
+    inner = cutout[:, 0].min(), cutout[:, 0].max()
+    return tapped, inner
 
 
 def clip_solid():
@@ -1141,6 +1155,865 @@ def cover_instructions():
     return done(cover, marks)
 
 
+# Job covers -------------------------------------------------------------------------------------
+#
+# Each job that is a skill of its own (jobSkills.ts) has a cover of its own on the Toolbox page, so
+# no two tiles there show the same picture. Each says what its job does to the same examples.
+
+def bracket_mesh():
+    import trimesh
+
+    return trimesh.util.concatenate(mount()["servo_bracket"])
+
+
+def adapter_mesh():
+    return mount()["horn_adapter"][0]
+
+
+def stand_mesh():
+    """The phone stand as the example prints it, on its back."""
+    import trimesh
+
+    return smoothed(trimesh.load(SAMPLES / "phone-stand" / "parts" / "phone_stand_print.stl", process=True))
+
+
+def turned(mesh, angle, axis, point):
+    import trimesh
+
+    moved = mesh.copy()
+    moved.apply_transform(trimesh.transformations.rotation_matrix(angle, axis, point))
+    return moved
+
+
+def visible_faces(picture: dict, mesh, faces, bias: float = 0.3) -> np.ndarray:
+    """Which of `faces` show in the picture: their middles are not behind anything."""
+    camera, depth = picture["camera"], picture["depth"]
+    middles = camera.project(mesh.triangles_center[faces])
+    shown = []
+    for face, (x, y, d) in zip(faces, middles):
+        px, py = int(x * OVER), int(y * OVER)
+        inside = 0 <= px < depth.shape[1] and 0 <= py < depth.shape[0]
+        shown.append(inside and depth[py, px] + bias >= d)
+    return np.asarray(faces)[np.asarray(shown, dtype=bool)]
+
+
+def arrow(marks: Marks, start, end, tone="hue", width=3.4, head=11.0) -> None:
+    """A picture-space arrow from `start` to `end`, its head filled."""
+    start, end = np.asarray(start, dtype=float), np.asarray(end, dtype=float)
+    forward = (end - start) / max(np.linalg.norm(end - start), 1e-6)
+    side = np.array([-forward[1], forward[0]])
+    marks.line([start, end - forward * head * 0.8], tone, width)
+    marks.add(line_path([end, end - forward * head * 1.5 + side * head * 0.75, end - forward * head * 1.5 - side * head * 0.75], closed=True), tone)
+
+
+def tool_marks(marks: Marks, camera: Camera, tip, radius: float, length: float, tone="hue") -> None:
+    """An end mill standing on `tip`, upright: its two ends and its sides, as the camera sees them."""
+    tip = np.asarray(tip, dtype=float)
+    bottom = camera.project(arc(tip, radius, 0, 2 * math.pi, steps=40))[:, :2]
+    top = camera.project(arc(tip, radius, 0, 2 * math.pi, height=length, steps=40))[:, :2]
+    marks.add(line_path(np.vstack([bottom, top[::-1]]).tolist(), closed=False), tone, None, 0.22)
+    marks.line(bottom.tolist(), tone, 3.0, closed=True)
+    marks.line(top.tolist(), tone, 3.0, closed=True)
+    left, right = np.argmin(bottom[:, 0]), np.argmax(bottom[:, 0])
+    marks.line([bottom[left], top[left]], tone, 3.0)
+    marks.line([bottom[right], top[right]], tone, 3.0)
+
+
+def ray_hits(mesh, origins, direction) -> list:
+    """Where each ray from `origins` along `direction` first meets the mesh, or None."""
+    locations, rays, _ = mesh.ray.intersects_location(origins, np.tile(direction, (len(origins), 1)))
+    hits = [None] * len(origins)
+    for location, ray in zip(locations, rays):
+        travel = np.dot(location - origins[ray], direction)
+        if hits[ray] is None or travel < np.dot(hits[ray] - origins[ray], direction):
+            hits[ray] = location
+    return hits
+
+
+def grid_over(mesh, pitch: float, inset: float = 0.6):
+    low, high = mesh.bounds
+    xs = np.arange(low[0] + inset, high[0] - inset, pitch)
+    ys = np.arange(low[1] + inset, high[1] - inset, pitch)
+    return np.array([(x, y) for x in xs for y in ys])
+
+
+def cover_clearance():
+    """The fit check's gap: the closest the horn adapter comes to the bracket, ringed where it is."""
+    import trimesh
+
+    bracket, adapter = bracket_mesh(), adapter_mesh()
+    points = adapter.sample(6000, seed=7) if hasattr(adapter, "sample") else adapter.vertices
+    nearest, distance, _ = trimesh.proximity.closest_point(bracket, points)
+    index = int(np.argmin(distance))
+    a, b = points[index], nearest[index]
+    camera = mount_camera()
+    parts = mount_parts(0.3, skip=("servo_bracket", "horn_adapter")) + mount_parts(only=("servo_bracket", "horn_adapter"))
+
+    def hook(picture, marks):
+        x, y, _ = camera.project((a + b) / 2)[0]
+        marks.add(circle_path(x, y, 20), "hue", 3.6)
+        arrow(marks, (x + 70, y - 62), (x + 16, y - 14))
+        arrow(marks, (x - 70, y + 62), (x - 16, y + 14))
+
+    return model(parts, camera, hook)
+
+
+def cover_motion_video():
+    """The horn adapter at the ends and the middle of its real travel, as frames of a video."""
+    origin, axis, lower, upper = horn_joint()
+    adapter = mount()["horn_adapter"]
+    parts = mount_parts(skip=("horn_adapter",))
+    for angle, ghost in ((lower, 0.3), (upper, 0.3), (0.0, 1.0)):
+        parts += [Part(turned(mesh, angle, axis, origin), ADAPTER, ghost) for mesh in adapter]
+    camera = mount_camera()
+
+    def hook(picture, marks):
+        x, y = 468, 334
+        marks.add(circle_path(x, y, 30), "hue")
+        marks.add(line_path([(x - 9, y - 14), (x - 9, y + 14), (x + 15, y)], closed=True), "ground")
+
+    return model(parts, camera, hook)
+
+
+def cover_stress_peak():
+    """The study's result, its highest stress ringed where the result puts it."""
+    mesh, colours, u = stress_result()
+    peak = mesh.vertices[int(np.argmax(u))]
+    camera = mount_camera()
+
+    def hook(picture, marks):
+        x, y, _ = camera.project(peak)[0]
+        marks.add(circle_path(x, y, 18), "ink", 4.0)
+        marks.line([(x + 13, y - 13), (x + 64, y - 64), (x + 130, y - 64)], "ink", 3.0)
+        marks.bar(x + 72, y - 92, 58, 12, "ink", 0.72)
+
+    return model([Part(mesh, colours=colours)], camera, hook)
+
+
+def cover_fea():
+    """The study's setup on the bracket: its weight pressing down where the servo sits, and the
+    flange it is held by. Where they go is an illustration; the study names the real faces."""
+    tapped, _ = bracket_holes()
+    bracket = bracket_mesh()
+    low, high = bracket.bounds
+    camera = mount_camera()
+
+    def hook(picture, marks):
+        for hole in tapped:
+            top = camera.project((hole[0], hole[1], 22))[0][:2]
+            bottom = camera.project((hole[0], hole[1], 1.5))[0][:2]
+            arrow(marks, top, bottom)
+        # The flange held fixed: a ground line under its foot, hatched.
+        edge = camera.project([(low[0], low[1], low[2]), (high[0], low[1], low[2])])[:, :2]
+        start, end = edge[0] + (0, 10), edge[1] + (0, 10)
+        marks.line([start, end], "ink", 3.0, 0.7)
+        for t in np.linspace(0.04, 0.96, 10):
+            p = start + (end - start) * t
+            marks.line([p, p + (-10, 12)], "ink", 2.2, 0.55)
+
+    return model(mount_parts(only=("servo_bracket",)), camera, hook)
+
+
+def cover_cam():
+    """The horn adapter in its real stock, with the job's 6 mm end mill over it."""
+    mesh, stock, moves = cam_job()
+    low, high = stock.min(axis=0), stock.max(axis=0)
+    centre = (low + high) / 2
+    tip = (centre[0] + (high[0] - low[0]) * 0.18, centre[1], high[2] + 4)
+    camera = Camera().fit(np.vstack([stock, [tip, (tip[0], tip[1], tip[2] + 26)]]), SAFE * 0.92)
+
+    def hook(picture, marks):
+        for start, end in box_edges(low, high):
+            for run in seen_runs(picture, [start, end]):
+                marks.line(run, "ink", 2.2, 0.45)
+        tool_marks(marks, camera, tip, 3.0, 26)
+
+    return model([Part(mesh, ADAPTER)], camera, hook)
+
+
+def cover_cnc():
+    """The motor plate, a CNC part, with an end mill over its middle bore."""
+    plate = step_part("motor-mount/parts/motor_plate.step")
+    low, high = plate.bounds
+    tip = ((low[0] + high[0]) / 2 + (high[0] - low[0]) * 0.22, (low[1] + high[1]) / 2, high[2] + 3)
+    camera = Camera().fit(np.vstack([plate.vertices, [(tip[0], tip[1], tip[2] + 30)]]), SAFE * 0.94)
+
+    def hook(picture, marks):
+        tool_marks(marks, camera, tip, 3.0, 30)
+
+    return model([Part(plate, ALUMINIUM)], camera, hook)
+
+
+def cover_fdm():
+    """The FDM check on the phone stand as it prints: the real check's largest overhangs past 45
+    degrees, ringed where it found them, each with the support it would need down to the plate."""
+    found = json.loads((SAMPLES / "phone-stand" / "checks" / "phone_stand_print.dfam_measure.json").read_text(encoding="utf-8"))
+    faces = [face for face in found["overhangs"]["largest_faces_below_limit"] if face["area_mm2"] >= 10]
+    mesh = stand_mesh()
+    low, high = mesh.bounds
+    plate = plate_mesh((low[0] - 8, low[1] - 8, low[2] - 1.6), (high[0] + 8, high[1] + 8, low[2]))
+    camera = Camera().fit(np.vstack([plate.vertices, mesh.vertices]), SAFE)
+
+    def hook(picture, marks):
+        for face in faces:
+            x, y, z = face["location_xyz"]
+            marks.line(camera.project([(x, y, z), (x, y, low[2])])[:, :2].tolist(), "hue", 3.0, dash="7 6")
+            px, py, _ = camera.project((x, y, z))[0]
+            marks.add(circle_path(px, py, 13), "warning", 3.6)
+
+    return model([Part(plate, PLATE, flat=True), Part(mesh, CLIP, layers=LAYER * 6)], camera, hook)
+
+
+def cover_print3d():
+    """A plate of the servo mount's printed parts, as 3D printing makes them: two horn adapters and
+    four cable clips, their walls in layers."""
+    parts_on_plate = []
+    x = 0.0
+    for mesh, count, colour in ((adapter_mesh(), 2, ADAPTER), (clip_mesh(), 4, CLIP)):
+        for index in range(count):
+            copy = mesh.copy()
+            low, high = copy.bounds
+            size = high - low
+            if mesh is adapter_mesh():
+                copy.apply_translation((-low[0] + index * (size[0] + 5), -low[1], -low[2]))
+            else:
+                copy.apply_translation((-low[0] + (index % 2) * (size[0] + 4), -low[1] + 40 + (index // 2) * (size[1] + 4), -low[2]))
+            parts_on_plate.append((copy, colour))
+    points = np.vstack([mesh.vertices for mesh, _ in parts_on_plate])
+    low, high = points.min(axis=0), points.max(axis=0)
+    plate = plate_mesh((low[0] - 7, low[1] - 7, -1.6), (high[0] + 7, high[1] + 7, 0))
+    camera = Camera().fit(np.vstack([plate.vertices, points]), SAFE)
+    parts = [Part(plate, PLATE, flat=True)] + [Part(mesh, colour, layers=LAYER * 2) for mesh, colour in parts_on_plate]
+    return model(parts, camera)
+
+
+def bambu_volume():
+    preset = json.loads((SAMPLES / "phone-stand" / "manufacturing" / "presets" / "printer.json").read_text(encoding="utf-8"))
+    corners = np.array([[float(v) for v in corner.split("x")] for corner in preset["printable_area"]])
+    return corners.min(axis=0), corners.max(axis=0), float(preset["printable_height"])
+
+
+def cover_bambu():
+    """The phone stand on the middle of the Bambu Lab P1S's plate, inside the printer's real build
+    volume, from the example's printer preset."""
+    (x0, y0), (x1, y1), height = bambu_volume()
+    mesh = stand_mesh().copy()
+    low, high = mesh.bounds
+    mesh.apply_translation(((x0 + x1) / 2 - (low[0] + high[0]) / 2, (y0 + y1) / 2 - (low[1] + high[1]) / 2, -low[2]))
+    plate = plate_mesh((x0, y0, -4), (x1, y1, 0))
+    box_low, box_high = (x0, y0, 0), (x1, y1, height)
+    camera = Camera().fit(np.array([box_low, box_high, (x0, y1, height), (x1, y0, 0), (x0, y0, -4)]), SAFE)
+
+    def hook(picture, marks):
+        for start, end in box_edges(box_low, box_high):
+            for run in seen_runs(picture, [start, end]):
+                marks.line(run, "hue", 2.6, 0.85)
+
+    return model([Part(plate, PLATE, flat=True), Part(mesh, CLIP, layers=LAYER * 30)], camera, hook)
+
+
+def cover_resin():
+    """The horn adapter as a resin printer makes it: upside down, hanging from the plate on
+    supports. An illustration: no slicer has run."""
+    mesh = turned(adapter_mesh(), math.pi, (1, 0, 0), (0, 0, 0))
+    low, high = mesh.bounds
+    gap = 7.0
+    mesh.apply_translation((0, 0, -high[2] - gap))
+    low, high = mesh.bounds
+    plate = plate_mesh((low[0] - 6, low[1] - 6, 0), (high[0] + 6, high[1] + 6, 3))
+    origins = np.column_stack([grid_over(mesh, 2.6), np.full(len(grid_over(mesh, 2.6)), 1.0)])
+    hits = [hit for hit in ray_hits(mesh, origins, np.array([0.0, 0.0, -1.0])) if hit is not None and hit[2] > low[2] + 0.5]
+    camera = Camera((1.0, -1.0, -0.62)).fit(np.vstack([plate.vertices, mesh.vertices]), SAFE * 0.94)
+
+    def hook(picture, marks):
+        for hit in hits:
+            for run in seen_runs(picture, [(hit[0], hit[1], 0.0), hit], bias=0.1):
+                marks.line(run, "hue", 1.8)
+
+    return model([Part(plate, PLATE, flat=True), Part(mesh, ADAPTER)], camera, hook)
+
+
+def cover_metal_print():
+    """The horn adapter tipped on a thick build plate, on supports to the plate, as a metal printer
+    makes it. An illustration: no slicer has run."""
+    mesh = turned(adapter_mesh(), math.radians(35), (1, 0, 0), adapter_mesh().centroid)
+    low, high = mesh.bounds
+    mesh.apply_translation((0, 0, 5.0 - low[2]))
+    low, high = mesh.bounds
+    plate = plate_mesh((low[0] - 7, low[1] - 7, -9), (high[0] + 7, high[1] + 7, 0))
+    origins = np.column_stack([grid_over(mesh, 1.8), np.full(len(grid_over(mesh, 1.8)), -1.0)])
+    hits = [hit for hit in ray_hits(mesh, origins, np.array([0.0, 0.0, 1.0])) if hit is not None]
+    camera = Camera().fit(np.vstack([plate.vertices, mesh.vertices]), SAFE * 0.94)
+
+    def hook(picture, marks):
+        for hit in hits:
+            for run in seen_runs(picture, [(hit[0], hit[1], 0.0), hit], bias=0.1):
+                marks.line(run, "hue", 1.8)
+
+    return model([Part(plate, SCREW, flat=True), Part(mesh, ALUMINIUM)], camera, hook)
+
+
+def batch(mesh, columns: int, rows: int, levels: int, gap: float):
+    """Copies of `mesh` in a block, as a powder printer packs them."""
+    low, high = mesh.bounds
+    size = high - low + gap
+    copies = []
+    for level in range(levels):
+        for row in range(rows):
+            for column in range(columns):
+                copy = mesh.copy()
+                copy.apply_translation(-low + size * (column, row, level) + ((row + level) % 2 * size[0] * 0.3, 0, 0))
+                copies.append(copy)
+    return copies
+
+
+def cover_sls():
+    """The cable clip packed in a block of powder, as SLS prints a batch: copies in two levels in
+    the build's box."""
+    copies = batch(clip_solid(), 3, 2, 2, 3.0)
+    points = np.vstack([copy.vertices for copy in copies])
+    low, high = points.min(axis=0) - 2.5, points.max(axis=0) + 2.5
+    camera = Camera().fit(np.vstack([low, high, (low[0], high[1], high[2]), (high[0], low[1], low[2])]), SAFE)
+
+    def hook(picture, marks):
+        for start, end in box_edges(low, high):
+            for run in seen_runs(picture, [start, end]):
+                marks.line(run, "hue", 2.6, 0.85)
+
+    return model([Part(smoothed(copy), CLIP) for copy in copies], camera, hook)
+
+
+def cover_mjf():
+    """One layer of an MJF build from above: the cable clips' and the horn adapters' real outlines
+    at that height, where the fusing agent goes, on the powder bed."""
+    from shapely.geometry import Polygon
+
+    clips = batch(clip_solid(), 3, 2, 1, 3.0)
+    adapters = []
+    for column in range(2):
+        copy = adapter_mesh().copy()
+        low, high = copy.bounds
+        size = high - low
+        copy.apply_translation(-low + (column * (size[0] + 3.0), -size[1] - 4.0, 0))
+        adapters.append(copy)
+    meshes = clips + adapters
+    points = np.vstack([mesh.vertices for mesh in meshes])
+    low, high = points.min(axis=0) - 4, points.max(axis=0) + 4
+    bed = plate_mesh((low[0], low[1], -2), (high[0], high[1], 0))
+    camera = Camera((0, 0, 1), (0, 1, 0)).fit(np.vstack([bed.vertices]), SAFE)
+
+    def hook(picture, marks):
+        shapes = []
+        for mesh in meshes:
+            mlow, mhigh = mesh.bounds
+            section = mesh.section(plane_origin=[0, 0, mlow[2] + (mhigh[2] - mlow[2]) * 0.4], plane_normal=[0, 0, 1.0])
+            if section is None:
+                continue
+            for loop in section.discrete:
+                flat = camera.project(loop)[:, :2]
+                if Polygon(flat).area > 4:
+                    shapes.append(line_path(simplified(flat.tolist(), 0.3), closed=True))
+        marks.add("".join(shapes), "hue", None, 0.85)
+        marks.add("".join(shapes), "ink", 2.0, 0.6)
+
+    return model([Part(bed, POWDER, flat=True)], camera, hook)
+
+
+def cover_molding():
+    """The horn adapter between the two halves of its mould: its parting line at its widest, and
+    each half pulling away along the draw. The halves are an illustration."""
+    mesh = adapter_mesh()
+    low, high = mesh.bounds
+    areas = []
+    for z in np.linspace(low[2] + 0.3, high[2] - 0.3, 30):
+        section = mesh.section(plane_origin=[0, 0, z], plane_normal=[0, 0, 1.0])
+        areas.append((0.0 if section is None else max(np.ptp(np.vstack(section.discrete)[:, :2], axis=0).prod(), 0), z))
+    _, parting = max(areas)
+    pad = max(high[0] - low[0], high[1] - low[1]) * 0.28
+    lift = (high[2] - low[2]) * 0.55
+    upper = (np.array([low[0] - pad, low[1] - pad, parting + lift]), np.array([high[0] + pad, high[1] + pad, high[2] + pad + lift]))
+    lower = (np.array([low[0] - pad, low[1] - pad, low[2] - pad - lift]), np.array([high[0] + pad, high[1] + pad, parting - lift]))
+    camera = Camera().fit(np.vstack([upper[1], lower[0], (upper[0][0], upper[1][1], upper[1][2]), (lower[1][0], lower[0][1], lower[0][2])]), SAFE)
+
+    def hook(picture, marks):
+        for low_corner, high_corner in (upper, lower):
+            for start, end in box_edges(low_corner, high_corner):
+                for run in seen_runs(picture, [start, end]):
+                    marks.line(run, "ink", 2.2, 0.5)
+        section = mesh.section(plane_origin=[0, 0, parting], plane_normal=[0, 0, 1.0])
+        for loop in section.discrete:
+            for run in seen_runs(picture, loop, bias=0.15):
+                marks.line(run, "hue", 4.0)
+        middle = (low + high) / 2
+        for sign, box in ((1, upper), (-1, lower)):
+            face = box[0][2] if sign > 0 else box[1][2]
+            start = camera.project((middle[0] + pad * 2.2, middle[1], face))[0][:2]
+            end = camera.project((middle[0] + pad * 2.2, middle[1], face + sign * lift * 0.9))[0][:2]
+            arrow(marks, start, end)
+
+    return model([Part(mesh, ADAPTER)], camera, hook)
+
+
+def extruded(polygon, height: float):
+    """A flat shapely polygon, holes and all, as a solid `height` thick (trimesh has no triangulator here)."""
+    import shapely
+    import trimesh
+
+    triangles = [list(t.exterior.coords)[:3] for t in shapely.constrained_delaunay_triangles(polygon).geoms]
+    vertices, faces = [], []
+    for triangle in triangles:
+        base = len(vertices)
+        vertices += [(x, y, 0.0) for x, y in triangle] + [(x, y, height) for x, y in triangle]
+        faces += [(base, base + 2, base + 1), (base + 3, base + 4, base + 5)]
+    for ring in (polygon.exterior, *polygon.interiors):
+        coords = list(ring.coords)
+        for (x0, y0), (x1, y1) in zip(coords[:-1], coords[1:]):
+            base = len(vertices)
+            vertices += [(x0, y0, 0.0), (x1, y1, 0.0), (x1, y1, height), (x0, y0, height)]
+            faces += [(base, base + 1, base + 2), (base, base + 2, base + 3)]
+    mesh = trimesh.Trimesh(vertices, faces, process=True)
+    mesh.fix_normals()
+    return mesh
+
+
+def cover_flat_pattern():
+    """The bracket's real flat pattern as the blank it is cut from, its bend line on it."""
+    from shapely.geometry import Polygon
+
+    rings, bends = cut_shapes(SERVO / "cut" / "servo_bracket_cut.dxf")
+    closed = sorted((Polygon(ring) for ring in rings if len(ring) > 3), key=lambda polygon: -polygon.area)
+    blank = Polygon(closed[0].exterior.coords, [hole.exterior.coords for hole in closed[1:] if closed[0].contains(hole)])
+    thickness = 1.6
+    mesh = extruded(blank, thickness)
+    camera = Camera().fit(mesh.vertices, SAFE)
+
+    def hook(picture, marks):
+        for bend in bends:
+            line = [(x, y, thickness) for x, y in bend]
+            for run in seen_runs(picture, line, bias=0.2):
+                marks.line(run, "hue", 3.6, dash="12 8")
+
+    return model([Part(mesh, ALUMINIUM, flat=True)], camera, hook)
+
+
+def cover_step():
+    """The bracket as STEP holds it: exact faces, their edges drawn."""
+    import trimesh
+
+    split = bracket_mesh()
+    mesh = trimesh.Trimesh(split.vertices, split.faces, process=True)
+    camera = mount_camera()
+
+    def hook(picture, marks):
+        sharp = mesh.face_adjacency_edges[mesh.face_adjacency_angles > math.radians(25)]
+        for a, b in sharp:
+            for run in seen_runs(picture, [mesh.vertices[a], mesh.vertices[b]], bias=0.3):
+                marks.line(run, "hue", 2.6)
+
+    return model(mount_parts(only=("servo_bracket",)), camera, hook)
+
+
+def cover_sdf():
+    """The mount as Gazebo shows it: standing in a world on its ground grid."""
+    points = mount_points()
+    low, high = points.min(axis=0), points.max(axis=0)
+    centre = (low + high) / 2
+    reach = max(high[0] - low[0], high[1] - low[1]) * 0.95
+    camera = Camera().fit(np.vstack([points, [(centre[0] - reach, centre[1] - reach, low[2]), (centre[0] + reach, centre[1] + reach, low[2])]]), SAFE)
+
+    def hook(picture, marks):
+        for t in np.linspace(-reach, reach, 9):
+            for line in (
+                [(centre[0] + t, centre[1] - reach, low[2]), (centre[0] + t, centre[1] + reach, low[2])],
+                [(centre[0] - reach, centre[1] + t, low[2]), (centre[0] + reach, centre[1] + t, low[2])],
+            ):
+                for run in seen_runs(picture, line, bias=0.3):
+                    marks.line(run, "hue", 2.0, 0.55)
+
+    return model(mount_parts(), camera, hook)
+
+
+def cover_srdf():
+    """The SRDF's planning group, the horn, and its three named states: home and the ends of its
+    real travel."""
+    origin, axis, lower, upper = horn_joint()
+    parts = mount_parts(0.42, skip=("horn_adapter",)) + mount_parts(only=("horn_adapter",))
+    camera = mount_camera()
+
+    def hook(picture, marks):
+        adapter = flat_shape(mount()["horn_adapter"], camera, 0.4)
+        marks.add(shape_path(adapter), "hue", None, 0.4)
+        sweep = camera.project(arc(origin, 22, lower, upper, height=6))[:, :2]
+        marks.line(sweep.tolist(), "hue", 2.4, dash="6 6")
+        for angle in (lower, 0.0, upper):
+            x, y, _ = camera.project(arc(origin, 22, angle, angle, height=6, steps=1))[0]
+            marks.add(circle_path(x, y, 10), "hue")
+            marks.add(circle_path(x, y, 4), "ground")
+
+    return model(parts, camera, hook)
+
+
+def cover_robot():
+    """The URDF's tree as the file gives it: each link a box, each joint a ring between them."""
+    root = robot_file("servo_mount.urdf")
+    links = [link.get("name") for link in root.iter("link")]
+    joints = [(joint.get("type"), joint.find("parent").get("link"), joint.find("child").get("link")) for joint in root.iter("joint")]
+    cover, marks = sheet()
+    y = title(marks) + 6
+    height = (BOTTOM - y) / len(links)
+    box_w = INNER_W * 0.62
+    centres = {}
+    for index, name in enumerate(links):
+        top = y + index * height + 8
+        box_h = height - 40
+        x = LEFT + (INNER_W - box_w) / 2
+        marks.add(rect_path(x, top, box_w, box_h, 6), "hue", 3.2)
+        marks.bar(x + 14, top + box_h / 2 - 4, box_w * (0.3 + 0.08 * len(name) / 4), 8, "ink", 0.55)
+        centres[name] = (x + box_w / 2, top, top + box_h)
+    for kind, parent, child in joints:
+        if parent in centres and child in centres:
+            x, _, below = centres[parent]
+            _, above, _ = centres[child]
+            marks.line([(x, below), (x, above)], "ink", 2.4, 0.6)
+            middle = (below + above) / 2
+            marks.add(circle_path(x, middle, 9), "hue" if kind != "fixed" else "ink", None, 1.0 if kind != "fixed" else 0.5)
+    return done(cover, marks)
+
+
+def cover_cam_results():
+    """The CAM job's report: its picture, its verdict, and a line for each real finding, in its
+    severity's colour."""
+    result = json.loads((SERVO / "cam" / "horn_adapter" / "result.json").read_text(encoding="utf-8"))
+    tones = {"error": "fail", "warning": "warning"}
+    cover, marks = sheet()
+    y = title(marks)
+    size = 128
+    marks.add(rect_path(LEFT, y, INNER_W, size, 5), "ink", None, 0.06)
+    marks.inset("toolpaths", LEFT + (INNER_W - size * 1.4) / 2, y, size * 1.4, size)
+    y += size + 14
+    status = result["measurements"]["verdict"]["status"]
+    marks.add(circle_path(LEFT + 8, y + 6, 7), "pass" if status == "ready" else "fail")
+    marks.bar(LEFT + 24, y + 2, INNER_W * 0.6, 8, "ink", 0.6)
+    y += 26
+    findings = result["findings"]
+    height = (BOTTOM - y) / max(len(findings), 1)
+    for index, finding in enumerate(findings):
+        middle = y + index * height + height / 2
+        marks.add(circle_path(LEFT + 8, middle, 6), tones.get(finding["severity"], "ink"))
+        marks.bar(LEFT + 24, middle - 3, INNER_W * (0.8 - 0.07 * (index % 3)), 6, "ink", 0.26)
+    return done(cover, marks)
+
+
+# Circuit boards: Jake's orbit clock (text-to-cad/models/electronics/orbit_clock), from its real
+# KiCad files.
+
+ORBIT = ROOT / "text-to-cad" / "models" / "electronics" / "orbit_clock"
+BOARD = (156, 166, 152)
+POWDER = (206, 209, 213)
+COPPER_TOP, COPPER_BOTTOM = "F.Cu", "B.Cu"
+
+
+def sexpr(text: str):
+    """A KiCad file as nested lists of atoms."""
+    tokens = re.findall(r'\(|\)|"(?:[^"\\]|\\.)*"|[^\s()]+', text)
+    stack: list[list] = [[]]
+    for token in tokens:
+        if token == "(":
+            stack.append([])
+        elif token == ")":
+            done_list = stack.pop()
+            stack[-1].append(done_list)
+        else:
+            stack[-1].append(token[1:-1] if token.startswith('"') else token)
+    return stack[0][0]
+
+
+def children(node, name):
+    return [child for child in node if isinstance(child, list) and child and child[0] == name]
+
+
+def child(node, name):
+    found = children(node, name)
+    return found[0] if found else None
+
+
+def xy(node) -> np.ndarray:
+    return np.array([float(node[1]), -float(node[2])])
+
+
+@lru_cache
+def orbit_board():
+    """The board's outline (a shapely polygon, Y up, in millimetres), its tracks by layer as
+    (points, width), its vias, and its footprints as (reference, pads, side), each pad an outline."""
+    from shapely import affinity
+    from shapely.geometry import LineString, Point, Polygon, box
+    from shapely.ops import linemerge, polygonize
+
+    tree = sexpr((ORBIT / "orbit.kicad_pcb").read_text(encoding="utf-8"))
+    edges = []
+    for kind in ("gr_line", "gr_arc", "gr_circle"):
+        for node in children(tree, kind):
+            if child(node, "layer")[1] != "Edge.Cuts":
+                continue
+            start, end = xy(child(node, "start")), xy(child(node, "end"))
+            if kind == "gr_arc":
+                mid = xy(child(node, "mid"))
+                edges.append(LineString(arc_points(start, mid, end)))
+            else:
+                edges.append(LineString([start, end]))
+    outline = max(polygonize(edges), key=lambda polygon: polygon.area)
+
+    tracks: dict[str, list] = {COPPER_TOP: [], COPPER_BOTTOM: []}
+    for node in children(tree, "segment"):
+        layer = child(node, "layer")[1]
+        if layer in tracks:
+            tracks[layer].append(([xy(child(node, "start")), xy(child(node, "end"))], float(child(node, "width")[1])))
+    for node in children(tree, "arc"):
+        layer = child(node, "layer")[1]
+        if layer in tracks:
+            points = arc_points(xy(child(node, "start")), xy(child(node, "mid")), xy(child(node, "end")))
+            tracks[layer].append((list(points), float(child(node, "width")[1])))
+    vias = [xy(child(node, "at")) for node in children(tree, "via")]
+
+    footprints = []
+    for node in children(tree, "footprint"):
+        at, transform = child(node, "at"), child(node, "transform")
+        if at is not None:
+            place, turn = xy(at), float(at[3]) if len(at) > 3 else 0.0
+        elif transform is not None:
+            # KiCad 10 places a footprint with a transform: its translate and rotate.
+            rotate = child(transform, "rotate")
+            place, turn = xy(child(transform, "translate")), float(rotate[1]) if rotate is not None else 0.0
+        else:
+            continue
+        side = "top" if child(node, "layer")[1] == COPPER_TOP else "bottom"
+        reference = next((prop[2] for prop in children(node, "property") if prop[1] == "Reference"), "")
+        pads = []
+        for pad in children(node, "pad"):
+            pad_at, size = child(pad, "at"), child(pad, "size")
+            if pad_at is None or size is None:
+                continue
+            offset = np.array([float(pad_at[1]), -float(pad_at[2])])
+            pad_turn = float(pad_at[3]) if len(pad_at) > 3 else turn
+            w, h = float(size[1]), float(size[2])
+            angle = math.radians(turn)
+            rotated = np.array([offset[0] * math.cos(angle) - offset[1] * math.sin(angle),
+                                offset[0] * math.sin(angle) + offset[1] * math.cos(angle)])
+            centre = place + rotated
+            shape = pad[3] if len(pad) > 3 else "rect"
+            outline_pad = Point(0, 0).buffer(w / 2, 16) if shape == "circle" else box(-w / 2, -h / 2, w / 2, h / 2)
+            outline_pad = affinity.translate(affinity.rotate(outline_pad, pad_turn), *centre)
+            pads.append(outline_pad)
+        footprints.append((reference, pads, side))
+    return outline, tracks, vias, footprints
+
+
+def arc_points(start, mid, end, steps=40) -> np.ndarray:
+    """The circle through three points, from `start` through `mid` to `end`."""
+    (ax, ay), (bx, by), (cx, cy) = start, mid, end
+    d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+    ux = ((ax**2 + ay**2) * (by - cy) + (bx**2 + by**2) * (cy - ay) + (cx**2 + cy**2) * (ay - by)) / d
+    uy = ((ax**2 + ay**2) * (cx - bx) + (bx**2 + by**2) * (ax - cx) + (cx**2 + cy**2) * (bx - ax)) / d
+    centre = np.array([ux, uy])
+    radius = np.linalg.norm(start - centre)
+    a0, a1, am = (math.atan2(p[1] - uy, p[0] - ux) for p in (start, end, mid))
+    sweep = (a1 - a0) % (2 * math.pi)
+    if not ((am - a0) % (2 * math.pi) < sweep):
+        sweep -= 2 * math.pi
+    angles = a0 + np.linspace(0, sweep, steps)
+    points = np.column_stack([centre[0] + radius * np.cos(angles), centre[1] + radius * np.sin(angles)])
+    points[0], points[-1] = start, end
+    return points
+
+
+THICK = 1.6
+
+
+def board_slab():
+    import trimesh
+
+    outline, *_ = orbit_board()
+    return extruded(outline, THICK)
+
+
+def board_marks(marks: Marks, camera: Camera, layer=COPPER_TOP, height=THICK, tone="hue", pads=True, picture=None, scale=1.0) -> None:
+    """A copper layer's real tracks and pads at `height`, as the camera sees them."""
+    outline, tracks, vias, footprints = orbit_board()
+    side = "top" if layer == COPPER_TOP else "bottom"
+    paths = {}
+    for points, width in tracks[layer]:
+        flat = camera.project([(x, y, height) for x, y in points])[:, :2]
+        stroke = max(round(width * camera.scale * scale, 1), 1.4)
+        paths.setdefault(stroke, []).append(line_path(flat.tolist()))
+    for stroke, drawn in paths.items():
+        marks.add("".join(drawn), tone, stroke)
+    if pads:
+        pad_paths = []
+        for _, pad_list, pad_side in footprints:
+            if pad_side != side:
+                continue
+            for pad in pad_list:
+                ring = camera.project([(x, y, height) for x, y in pad.exterior.coords[:-1]])[:, :2]
+                pad_paths.append(line_path(ring.tolist(), closed=True))
+        marks.add("".join(pad_paths), "ink", None, 0.55)
+
+
+def top_camera(fit_points, box=SAFE):
+    return Camera((0, 0, 1), (0, 1, 0)).fit(fit_points, box)
+
+
+def cover_board():
+    """The orbit clock's board from above: its real top copper, tracks and pads."""
+    slab = board_slab()
+    camera = top_camera(slab.vertices)
+
+    def hook(picture, marks):
+        board_marks(marks, camera, scale=2.2)
+
+    return model([Part(slab, BOARD, flat=True)], camera, hook)
+
+
+def body_height(reference: str) -> float:
+    """A footprint's part's height, by its kind: an illustration, as no 3D models are read."""
+    kind = re.sub(r"\d.*", "", reference)
+    return {"R": 0.5, "C": 0.8, "D": 0.9, "LED": 0.9, "U": 1.2, "J": 5.5, "SW": 3.5, "Y": 1.0, "Q": 1.0, "F": 0.8, "L": 1.2}.get(kind, 1.0)
+
+
+def cover_board_step():
+    """The board in 3D, as its STEP shows it: the real outline, and each part a body over its real pads."""
+    import trimesh
+    from shapely.ops import unary_union
+
+    slab = board_slab()
+    _, _, _, footprints = orbit_board()
+    parts = [Part(slab, BOARD, flat=True)]
+    for reference, pads, side in footprints:
+        if not pads:
+            continue
+        footprint = unary_union(pads).minimum_rotated_rectangle.buffer(0.15, join_style=2)
+        height = body_height(reference)
+        body = extruded(footprint, height)
+        body.apply_translation((0, 0, THICK if side == "top" else -height))
+        colour = SERVO_CASE if reference[:1] in "UJ" or reference.startswith("LED") or reference[:1] == "D" else SCREW
+        parts.append(Part(body, colour, flat=True))
+    camera = Camera((0.5, -1.0, 1.15)).fit(slab.vertices, SAFE)
+    return model(parts, camera)
+
+
+def cover_board_fab():
+    """The fabrication files as the board's layers pulled apart: top copper, the board, bottom
+    copper, each its real tracks."""
+    slab = board_slab()
+    outline, *_ = orbit_board()
+    lift = 34.0
+    ring = list(outline.exterior.coords)
+    points = np.vstack([slab.vertices, [(x, y, THICK + lift) for x, y in ring], [(x, y, -lift) for x, y in ring]])
+    camera = Camera((0.6, -1.0, 0.75)).fit(points, SAFE)
+
+    def hook(picture, marks):
+        for height in (THICK + lift, -lift):
+            flat = camera.project([(x, y, height) for x, y in ring])[:, :2]
+            marks.add(line_path(flat.tolist(), closed=True), "ink", None, 0.08)
+            marks.line(flat.tolist(), "ink", 2.0, 0.5, closed=True)
+        board_marks(marks, camera, COPPER_TOP, THICK + lift, pads=True, scale=1.6)
+        board_marks(marks, camera, COPPER_BOTTOM, -lift, pads=False, scale=1.6)
+
+    return model([Part(slab, BOARD, flat=True)], camera, hook)
+
+
+def cover_board_drc():
+    """The design rule check's view: the board's busiest corner, close, with the narrowest real gaps
+    between a track and another net's pad ringed."""
+    from shapely.geometry import LineString
+
+    outline, tracks, vias, footprints = orbit_board()
+    lines = [LineString(points).buffer(width / 2) for points, width in tracks[COPPER_TOP]]
+    pads = [pad for _, pad_list, side in footprints if side == "top" for pad in pad_list]
+    centres = np.array([pad.centroid.coords[0] for pad in pads])
+    # The busiest place: the pad with the most pads near it.
+    crowd = [(np.sum(np.linalg.norm(centres - centre, axis=1) < 6), index) for index, centre in enumerate(centres)]
+    _, busiest = max(crowd)
+    focus = centres[busiest]
+    reach = 7.5
+    near = [pad for pad in pads if np.linalg.norm(np.array(pad.centroid.coords[0]) - focus) < reach]
+    gaps = []
+    for pad in near:
+        for line in lines:
+            if line.intersects(pad):
+                continue
+            distance = line.distance(pad)
+            if distance < 0.6:
+                gaps.append((distance, pad.centroid.coords[0]))
+    gaps = sorted(gaps)[:3]
+    slab = board_slab()
+    camera = top_camera(np.array([(focus[0] - reach, focus[1] - reach, 0), (focus[0] + reach, focus[1] + reach, 0)]))
+
+    def hook(picture, marks):
+        board_marks(marks, camera)
+        for _, (x, y) in gaps:
+            px, py, _ = camera.project((x, y, THICK))[0]
+            marks.add(circle_path(px, py, 22), "ink", 3.6)
+
+    return model([Part(slab, BOARD, flat=True)], camera, hook)
+
+
+def cover_board_review():
+    """A board's review: the board, then a line for each thing it is checked for before ordering."""
+    cover, marks = sheet()
+    y = title(marks)
+    size = 150
+    marks.add(rect_path(LEFT, y, INNER_W, size, 5), "ink", None, 0.06)
+    marks.inset("board-step", LEFT + (INNER_W - size) / 2, y, size, size)
+    y += size + 14
+    rows = 5
+    height = (BOTTOM - y) / rows
+    for index in range(rows):
+        middle = y + index * height + height / 2
+        marks.add(rect_path(LEFT + 1.5, middle - 8, 16, 16, 4), "hue", 3.0)
+        marks.bar(LEFT + 28, middle - 3, INNER_W * (0.78 - 0.08 * (index % 3)), 6, "ink", 0.28)
+    return done(cover, marks)
+
+
+def cover_schematic():
+    """The orbit clock's hour LEDs' sheet as its file draws it: its real wires, parts and junctions."""
+    tree = sexpr((ORBIT / "hours.kicad_sch").read_text(encoding="utf-8"))
+    wires = [[xy(point) for point in children(child(node, "pts"), "xy")] for node in children(tree, "wire")]
+    junctions = [xy(child(node, "at")) for node in children(tree, "junction")]
+    symbols = [xy(child(node, "at")) for node in children(tree, "symbol") if child(node, "lib_id") is not None]
+    points = np.vstack([np.vstack(wire) for wire in wires] + ([np.vstack(symbols)] if symbols else []))
+    part = np.array([2.6, 3.8])
+    if np.ptp(points[:, 0]) > np.ptp(points[:, 1]):
+        # A wide sheet stands on the portrait page a quarter turn round.
+        def turn(point):
+            return np.array([-point[1], point[0]])
+
+        wires = [[turn(point) for point in wire] for wire in wires]
+        junctions = [turn(point) for point in junctions]
+        symbols = [turn(point) for point in symbols]
+        points = np.vstack([np.vstack(wire) for wire in wires] + ([np.vstack(symbols)] if symbols else []))
+        part = part[::-1]
+    low, high = points.min(axis=0) - part, points.max(axis=0) + part
+    cover, marks = sheet()
+    top = title(marks) + 6
+    box = (LEFT, top, INNER_W, BOTTOM - top)
+    scale = min(box[2] / (high[0] - low[0]), box[3] / (high[1] - low[1]))
+    offset = np.array([box[0] + (box[2] - (high[0] - low[0]) * scale) / 2, box[1] + (box[3] - (high[1] - low[1]) * scale) / 2])
+
+    def place(point):
+        return (point[0] - low[0]) * scale + offset[0], (high[1] - point[1]) * scale + offset[1]
+
+    for wire in wires:
+        marks.line([place(point) for point in wire], "ink", 2.2, 0.75)
+    w, h = part * scale
+    for symbol in symbols:
+        x, y = place(symbol)
+        marks.add(rect_path(x - w / 2, y - h / 2, w, h, 2), "hue", 2.4)
+    for junction in junctions:
+        x, y = place(junction)
+        marks.add(circle_path(x, y, 3.4), "ink")
+    return done(cover, marks)
+
+
 # The covers, by name. A later cover's sheet can inset an earlier one's picture.
 COVERS = {
     "bracket": cover_bracket,
@@ -1169,6 +2042,32 @@ COVERS = {
     "requirements": cover_requirements,
     "fmea": cover_fmea,
     "design-review": cover_design_review,
+    "clearance": cover_clearance,
+    "motion-video": cover_motion_video,
+    "stress-peak": cover_stress_peak,
+    "fea": cover_fea,
+    "cam": cover_cam,
+    "cnc": cover_cnc,
+    "fdm": cover_fdm,
+    "print3d": cover_print3d,
+    "bambu": cover_bambu,
+    "resin": cover_resin,
+    "metal-print": cover_metal_print,
+    "sls": cover_sls,
+    "mjf": cover_mjf,
+    "molding": cover_molding,
+    "flat-pattern": cover_flat_pattern,
+    "step": cover_step,
+    "sdf": cover_sdf,
+    "srdf": cover_srdf,
+    "robot": cover_robot,
+    "cam-results": cover_cam_results,
+    "board": cover_board,
+    "board-step": cover_board_step,
+    "board-fab": cover_board_fab,
+    "board-drc": cover_board_drc,
+    "board-review": cover_board_review,
+    "schematic": cover_schematic,
 }
 
 
