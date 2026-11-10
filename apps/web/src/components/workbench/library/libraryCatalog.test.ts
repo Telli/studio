@@ -59,7 +59,6 @@ const NOT_MADE = [
   "doc:circuit-board",
   "skill:text-to-cad/pcb",
   "skill:text-to-cad/print3d",
-  "skill:text-to-cad/work-instructions",
 ];
 
 const EXAMPLES: Readonly<Record<string, { sample?: string; example: string } | null>> =
@@ -332,6 +331,7 @@ describe("library catalog", () => {
   it("shows each skill where New and the menus offer it", () => {
     expect(showsUpAs("print3d")).toEqual(["Manufacturing: Slice and print"]);
     expect(showsUpAs("pcb")).toEqual([
+      "New: Circuit board",
       "Analysis: Board checks, Review before ordering",
       "Manufacturing: Fabrication files, Board STEP",
     ]);

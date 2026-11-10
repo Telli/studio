@@ -455,7 +455,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   to find one, the folders in no project), and New and Import beside them to add one (on the
   Projects page Import shows only in Engineering): New is the same New and dialog as a project's
   toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its first chat,
-  the kind of project its work needs (an assembly a product, a board or harness a circuit board, a
+  the kind of project its work needs (an assembly a product, a circuit board a circuit board project, a
   robot description a robot, the rest a mechanical part: `projectKindFor`). There is one New: ⌘K's
   and the project switcher's New project open it, and Make a project on a folder in no project makes
   a mechanical part project of it at once, its brief filled in later. New's Part is New part, with
@@ -799,7 +799,10 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   it; a pause on a tile shows its name and what it makes (`TooltipRich`). Every job is a tile like every other: within a tab
   nothing is folded away (Amy, 11/04: every skill weighs the same; 11/05: tabs, not one long list). It
   folds to its icons, and starts folded in a narrow panel, in CAD any panel beside a chat, so the
-  model keeps the room (`toolboxNarrowRem`); a group's icon opens it on that tab. The jobs the part's kind takes:
+  model keeps the room (`toolboxNarrowRem`); a group's icon opens it on that tab. Every job the
+  enabled skills can do is there whatever file is in front (Amy, 11/09: all of them at once, a
+  board's too): one that does not fit that file keeps its tile, dimmed as NX greys a command out,
+  and a pause on it says what it works on (`toolboxWorksOn`); with no file yet, every tile does. The jobs:
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.

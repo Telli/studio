@@ -558,20 +558,26 @@ export const MORE_LABELS: Record<HardwareActionGroup, string> = {
   Document: "More documents",
 };
 
+/** Whether a job works on a file of this kind. */
+export function jobFits(action: HardwareAction, kind: string): boolean {
+  return action.kinds === null || action.kinds.includes(kind);
+}
+
 /**
- * The jobs for a part of this kind that the enabled plugins' skills can do, by menu, in order.
+ * The jobs for a part of this kind that the enabled plugins' skills can do, by menu, in order; with
+ * no kind, every job those skills can do, whatever it works on (the Toolbox, which shows them all).
  * Manufacture puts the project's own way of making it first, whole, and the other ways apart;
  * until the project has chosen one, every way waits apart.
  */
 export function hardwareActions(
-  kind: string,
+  kind: string | null,
   skills: ReadonlySet<string>,
   process: MakingProcess | string = "Not decided",
 ): HardwareActionMenu[] {
   const decided = process.trim() !== "" && process !== "Not decided";
   const offered = HARDWARE_ACTIONS.filter(
     (action) =>
-      (action.kinds === null || action.kinds.includes(kind)) &&
+      (kind === null || jobFits(action, kind)) &&
       (action.skill === null || skills.has(action.skill)),
   );
   const filled = (defs: ReadonlyArray<ActionSectionDef>) =>

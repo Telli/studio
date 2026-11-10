@@ -242,12 +242,12 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
   doc({
     id: "doc:circuit-board",
     name: "Circuit board",
-    templates: [],
+    templates: ["board"],
     actions: jobsRunBy("pcb"),
-    what: "Checks of a KiCad board and its schematic, and the files a fab and an enclosure need.",
-    give: "The board or its schematic.",
+    what: "A KiCad board and its schematic, its checks, and the files a fab and an enclosure need.",
+    give: "The circuit in words, or a board or schematic you already have.",
     asks: "Which fab it is for, and the current its tracks carry.",
-    gets: "Each check's findings with where they are and the fix, the fabrication files, and the board as STEP.",
+    gets: "The board and schematic as KiCad files, each check's findings with where they are and the fix, the fabrication files, and the board as STEP.",
   }),
   doc({
     id: "doc:export",

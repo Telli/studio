@@ -98,5 +98,8 @@
   "skill:text-to-cad/sendcutsend": {
     "example": "cut/servo_bracket_sendcutsend.md"
   },
-  "skill:text-to-cad/work-instructions": null
+  "skill:text-to-cad/work-instructions": {
+    "sample": "desk-lamp",
+    "example": "docs/desk_lamp_work_instructions.pdf"
+  }
 }

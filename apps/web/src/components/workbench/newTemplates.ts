@@ -1,7 +1,7 @@
 /**
  * What a new piece of work can be, the way a CAD system's New dialog offers
- * templates (a part, an assembly, a drawing) but across engineering: studies,
- * manufacturing, robots, documents. Each runs on one
+ * templates (a part, an assembly, a drawing) but across engineering: circuit boards,
+ * studies, manufacturing, robots, documents. Each runs on one
  * of text-to-cad's skills and can be made only while an enabled plugin has it;
  * New shows the rest dimmed, naming the skill (`templateOffers`).
  * A template either makes something new (a name, a folder, units) or works
@@ -77,6 +77,16 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     source: "new",
     folder: "parts",
     defaultName: "Sheet metal part",
+  },
+  {
+    id: "board",
+    discipline: "Electronics",
+    label: "Circuit board",
+    description: "A KiCad board and its schematic, from the circuit you describe.",
+    skill: "pcb",
+    source: "new",
+    folder: "electronics",
+    defaultName: "Board",
   },
   {
     id: "drawing",
@@ -327,6 +337,9 @@ export function newWorkPrompt(work: NewWork): string {
       return `Create a new assembly as a CAD model in ${target}.py, in ${units}, using the project's parts where they fit.${ask}`;
     case "sheet-metal":
       return `Create a new sheet metal part as a CAD model in ${target}.py, in ${units}, with its flat pattern.${ask}`;
+    // A board is KiCad's own files, the schematic and the board beside it, not a CAD model.
+    case "board":
+      return `Create a new KiCad circuit board, ${target}.kicad_pcb, with its schematic beside it. Give its sizes in ${units}.${ask}`;
     case "drawing":
       return `Make an engineering drawing of ${part} with its key dimensions and tolerances, in ${units}.${ask}`;
     case "strength-study":
