@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import { HARDWARE_ACTIONS, type HardwareAction } from "./hardwareActions";
 import type { ToolboxSection } from "./toolbox";
+import { NEW_TEMPLATES, type NewTemplate } from "./newTemplates";
 import { SectionJobs } from "./ToolboxJobs";
 
 let root: Root;
@@ -64,10 +65,21 @@ async function renderSection(
   onRun: (action: HardwareAction) => void,
   worksOn: (action: HardwareAction) => string | null = () => null,
   shown: ToolboxSection = section,
+  starts: {
+    readonly startFor: (action: HardwareAction) => NewTemplate | null;
+    readonly onStart: (template: NewTemplate) => void;
+  } = { startFor: () => null, onStart: () => {} },
 ) {
   await act(async () => {
     root.render(
-      <SectionJobs section={shown} disabled={disabled} worksOn={worksOn} onRun={onRun} />,
+      <SectionJobs
+        section={shown}
+        disabled={disabled}
+        worksOn={worksOn}
+        startFor={starts.startFor}
+        onRun={onRun}
+        onStart={starts.onStart}
+      />,
     );
   });
 }
@@ -119,5 +131,25 @@ describe("SectionJobs tool tiles", () => {
     // The ones that fit still run.
     await act(async () => tile(mass.label).click());
     expect(onRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens New on what a job works on where the project has none, and runs nothing", async () => {
+    const onRun = vi.fn<(action: HardwareAction) => void>();
+    const onStart = vi.fn<(template: NewTemplate) => void>();
+    const fitAndMass = HARDWARE_ACTIONS.filter((action) => action.section === "fit-mass");
+    const fit = fitAndMass.find((job) => job.id === "fit")!;
+    const assembly = NEW_TEMPLATES.find((template) => template.id === "assembly")!;
+    await renderSection(
+      false,
+      onRun,
+      (action) => (action.id === "fit" ? "Works on an assembly." : null),
+      { title: "Fit and mass", actions: fitAndMass },
+      { startFor: (action) => (action.id === "fit" ? assembly : null), onStart },
+    );
+
+    expect(tile(fit.label).getAttribute("aria-disabled")).toBeNull();
+    await act(async () => tile(fit.label).click());
+    expect(onStart).toHaveBeenCalledWith(assembly);
+    expect(onRun).not.toHaveBeenCalled();
   });
 });

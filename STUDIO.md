@@ -808,7 +808,11 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   model keeps the room (`toolboxNarrowRem`); a group's icon opens it on that tab. Every job the
   enabled skills can do is there whatever file is in front (Amy, 11/09: all of them at once, a
   board's too): one that does not fit that file keeps its tile, dimmed as NX greys a command out,
-  and a pause on it says what it works on (`toolboxWorksOn`); with no file yet, every tile does. The jobs:
+  and a pause on it says what it works on (`toolboxWorksOn`); with no file yet, every tile does.
+  Where the project holds nothing the job works on and New makes it (`toolboxStart`: a board's
+  jobs in a project with no board, an assembly's in one with only parts), the dimmed tile still
+  takes a press and opens New on that start (Amy, 11/09: New and the Toolbox linked where a job
+  has nothing to work on yet). The jobs:
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.

@@ -5,6 +5,7 @@ import {
   jobFits,
 } from "./hardwareActions";
 import { libraryHref } from "./library/librarySearch";
+import { NEW_TEMPLATES, type NewTemplate } from "./newTemplates";
 import { lowerName } from "./partNames";
 
 /** A run of jobs in a group, under its title. */
@@ -104,7 +105,11 @@ export function jobCount(group: ToolboxGroup): number {
  * the job works on: "Works on a board or a schematic. Open one to use it." Null when the job fits
  * the file, and its tile runs it.
  */
-export function toolboxWorksOn(action: HardwareAction, kind: string | null): string | null {
+export function toolboxWorksOn(
+  action: HardwareAction,
+  kind: string | null,
+  start: NewTemplate | null = null,
+): string | null {
   if (kind !== null && jobFits(action, kind)) return null;
   if (action.kinds === null) return "Works on any file. Open one to use it.";
   const kinds = action.kinds.map((name) => {
@@ -113,7 +118,32 @@ export function toolboxWorksOn(action: HardwareAction, kind: string | null): str
     return `${/^([aeiou]|FEA\b)/.test(lower) ? "an" : "a"} ${lower}`;
   });
   const listed = new Intl.ListFormat("en", { type: "disjunction" }).format(kinds);
+  if (start !== null) return `Works on ${listed}. This project has none yet: press to start one.`;
   return `Works on ${listed}. Open one to use it.`;
+}
+
+/** New's start for what a job works on, the first kind of its list that New makes. */
+const START_FOR_KIND: Readonly<Record<string, string>> = {
+  Part: "part",
+  Assembly: "assembly",
+  Board: "board",
+  Schematic: "board",
+};
+
+/**
+ * New's start (`NEW_TEMPLATES`) for a job whose project holds nothing it works on (`projectKinds`,
+ * its files' kinds): a board job in a project with no board starts a circuit board, an assembly
+ * job in one with only parts starts an assembly. Its tile then opens New there instead of running.
+ * Null while the project has something the job works on (the tile says to open it), and for a job
+ * on any file or on what only another job makes (a study, a drawing alone).
+ */
+export function toolboxStart(
+  action: HardwareAction,
+  projectKinds: ReadonlySet<string>,
+): NewTemplate | null {
+  if (action.kinds === null || action.kinds.some((kind) => projectKinds.has(kind))) return null;
+  const id = action.kinds.map((kind) => START_FOR_KIND[kind]).find((found) => found !== undefined);
+  return NEW_TEMPLATES.find((template) => template.id === id) ?? null;
 }
 
 /**

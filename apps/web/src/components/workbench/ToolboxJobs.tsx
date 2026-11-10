@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import { jobLine, type HardwareAction } from "./hardwareActions";
+import type { NewTemplate } from "./newTemplates";
 import type { ToolboxSection } from "./toolbox";
 import { GROUP_LABEL } from "./studioLayout";
 import { MENU_TINTS } from "./kinds";
@@ -38,7 +39,13 @@ export function SectionJobs(props: {
    * that can. Its tile stays where it is, dimmed, and says so on a pause over it.
    */
   readonly worksOn: (action: HardwareAction) => string | null;
+  /**
+   * New's start for what a job works on, where the project has none of it (`toolboxStart`): its
+   * dimmed tile takes a press then, and opens New there (`onStart`).
+   */
+  readonly startFor: (action: HardwareAction) => NewTemplate | null;
   readonly onRun: (action: HardwareAction) => void;
+  readonly onStart: (template: NewTemplate) => void;
 }) {
   const lone = props.section.actions.length === 1;
   return (
@@ -55,7 +62,9 @@ export function SectionJobs(props: {
             icon={toolIcon(action)}
             disabled={props.disabled}
             worksOn={props.worksOn(action)}
+            start={props.startFor(action)}
             onRun={() => props.onRun(action)}
+            onStart={props.onStart}
           />
         ))}
       </div>
@@ -74,7 +83,8 @@ const TILE_LIVE =
  * name in three lines' room, so a long name is read whole and names of any length sit level across a row. Its name and
  * what it makes show on a pause over it and is the tile's description for readers. A press sends
  * the job (`onRun`). One whose job does not fit the file in front (`worksOn`) is dimmed in its
- * place, as NX greys a command out, takes no press, and says what it works on instead.
+ * place, as NX greys a command out, takes no press, and says what it works on instead; where the
+ * project has none of that and New makes it (`start`), a press opens New there.
  */
 function ToolTile(props: {
   readonly action: HardwareAction;
@@ -82,11 +92,15 @@ function ToolTile(props: {
   readonly icon: LucideIcon;
   readonly disabled: boolean;
   readonly worksOn: string | null;
+  readonly start: NewTemplate | null;
   readonly onRun: () => void;
+  readonly onStart: (template: NewTemplate) => void;
 }) {
-  const { action, icon: Icon, worksOn } = props;
+  const { action, icon: Icon, worksOn, start } = props;
   const describedBy = useId();
   const fits = worksOn === null;
+  // Dimmed either way; a start is still pressed, the way to make what the job works on.
+  const starts = !fits && start !== null;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -97,10 +111,13 @@ function ToolTile(props: {
           <button
             type="button"
             disabled={fits && props.disabled}
-            aria-disabled={fits ? undefined : true}
-            onClick={fits ? props.onRun : undefined}
+            aria-disabled={fits || starts ? undefined : true}
+            onClick={fits ? props.onRun : starts ? () => props.onStart(start) : undefined}
             aria-describedby={describedBy}
-            className={cn(TILE, fits ? TILE_LIVE : "cursor-default opacity-64")}
+            className={cn(
+              TILE,
+              fits ? TILE_LIVE : starts ? cn(TILE_LIVE, "opacity-64") : "cursor-default opacity-64",
+            )}
           />
         }
       >

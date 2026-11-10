@@ -8,6 +8,7 @@ import {
   toolboxFolded,
   toolboxNarrowRem,
   toolboxGroups,
+  toolboxStart,
   toolboxLeftOut,
   toolboxLibraryLink,
   toolboxWorksOn,
@@ -171,6 +172,24 @@ describe("the Toolbox, whatever file is in front", () => {
   it("says what every job works on with no file open yet", () => {
     expect(toolboxWorksOn(job("board-fab"), null)).toBe("Works on a board. Open one to use it.");
     expect(toolboxWorksOn(job("write-up"), null)).toBe("Works on any file. Open one to use it.");
+  });
+
+  it("starts what a job works on, with New, where the project has none of it", () => {
+    const kinds = (...names: ReadonlyArray<string>) => new Set(names);
+    expect(toolboxStart(job("board-check"), kinds("Part"))?.id).toBe("board");
+    expect(toolboxStart(job("fit"), kinds("Part"))?.id).toBe("assembly");
+    expect(toolboxStart(job("board-check"), kinds())?.id).toBe("board");
+    const board = toolboxStart(job("board-fab"), kinds("Part"));
+    expect(toolboxWorksOn(job("board-fab"), "Part", board)).toBe(
+      "Works on a board. This project has none yet: press to start one.",
+    );
+  });
+
+  it("leaves a job to the file it works on where the project has one, or New makes none", () => {
+    const kinds = (...names: ReadonlyArray<string>) => new Set(names);
+    expect(toolboxStart(job("board-check"), kinds("Part", "Schematic"))).toBeNull();
+    expect(toolboxStart(job("fit"), kinds("Assembly"))).toBeNull();
+    expect(toolboxStart(job("write-up"), kinds())).toBeNull();
   });
 
   it("says so under a group none of whose jobs fit the file", () => {

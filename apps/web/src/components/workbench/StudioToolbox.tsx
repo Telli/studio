@@ -23,6 +23,8 @@ import { withToolLine } from "./toolUsed";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
 import { useSimpleView } from "./simpleView";
+import { useNewDialogStore } from "./newDialogStore";
+import type { NewTemplate } from "./newTemplates";
 import { usePartForJobs } from "./StudioPanelBar";
 import { SECTION_GRID, SectionJobs } from "./ToolboxJobs";
 import {
@@ -35,10 +37,12 @@ import {
   toolboxLeftOut,
   toolboxLibraryLink,
   toolboxNarrowRem,
+  toolboxStart,
   toolboxWorksOn,
   writeToolboxFolded,
   writeToolboxTab,
 } from "./toolbox";
+import { useProjectKinds } from "./useLeadPart";
 import { useToolboxJobs } from "./useToolboxJobs";
 
 /**
@@ -49,7 +53,9 @@ import { useToolboxJobs } from "./useToolboxJobs";
  * none hidden: the group's purpose over one even grid of tiles, each section's name over its first.
  * The jobs are for the part in front, else the project's (`usePartForJobs`). A job that does not
  * fit that file (a board's on a part) keeps its tile, dimmed as NX greys a command out, and says
- * what it works on (`toolboxWorksOn`); with no file yet, every tile does.
+ * what it works on (`toolboxWorksOn`); with no file yet, every tile does. Where the project holds
+ * nothing the job works on and New makes it (`toolboxStart`: a board job in a project with no
+ * board), the tile's press opens New on that start instead, the way to make what the job needs.
  * A tile press sends its job in the chat for that part, or adds it after a draft being written
  * there for the person to send (`handToChat`). It folds to an edge of the groups' icons, as chosen
  * on this device, and on a narrow panel (`toolboxNarrowRem`: in CAD, one beside a chat) starts
@@ -66,6 +72,11 @@ export function StudioToolbox(props: {
   const { threadRef, composerRef } = props;
   const { part, process } = usePartForJobs(threadRef, props.folder, props.mutationId);
   const jobs = useToolboxJobs(threadRef.environmentId, process);
+  const projectKinds = useProjectKinds(threadRef.environmentId, props.folder, props.mutationId);
+  const startFor = (action: HardwareAction) =>
+    projectKinds === null ? null : toolboxStart(action, projectKinds);
+  const start = (template: NewTemplate) =>
+    useNewDialogStore.getState().ask(template.discipline, template.id);
   const groups = useMemo(() => toolboxGroups(jobs.menus), [jobs.menus]);
 
   const navigate = useNavigate();
@@ -190,7 +201,8 @@ export function StudioToolbox(props: {
             <>
               {part === null ? (
                 <p className="text-xs text-muted-foreground">
-                  The Toolbox works on a part you already have. Start one with New, or import one.
+                  The Toolbox works on a part you already have. Press a tile to start what it works
+                  on, or import a part.
                 </p>
               ) : composerRef === null ? (
                 <p className="text-xs text-muted-foreground">
@@ -202,8 +214,10 @@ export function StudioToolbox(props: {
                   group={shown}
                   leftOut={leftOut}
                   disabled={composerRef === null}
-                  worksOn={(action) => toolboxWorksOn(action, kind)}
+                  worksOn={(action) => toolboxWorksOn(action, kind, startFor(action))}
+                  startFor={startFor}
                   onRun={run}
+                  onStart={start}
                   onBrowse={() => browse(shown.group)}
                 />
               ) : null}
@@ -280,7 +294,10 @@ function GroupJobs(props: {
   readonly disabled: boolean;
   /** Why a job can't run on the file in front (`toolboxWorksOn`); null for one that can. */
   readonly worksOn: (action: HardwareAction) => string | null;
+  /** New's start for what a job works on, where the project has none of it (`toolboxStart`). */
+  readonly startFor: (action: HardwareAction) => NewTemplate | null;
   readonly onRun: (action: HardwareAction) => void;
+  readonly onStart: (template: NewTemplate) => void;
   readonly onBrowse: () => void;
 }) {
   const empty = props.group.sections.length === 0;
@@ -295,7 +312,9 @@ function GroupJobs(props: {
               section={section}
               disabled={props.disabled}
               worksOn={props.worksOn}
+              startFor={props.startFor}
               onRun={props.onRun}
+              onStart={props.onStart}
             />
           ))}
         </div>
