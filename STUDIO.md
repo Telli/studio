@@ -265,7 +265,11 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
   viewer's routes, through `cad_http` once per revision, say the rest. Studio makes no call the
   plugin would count, and a fact the server does not hold is left out or said to be missing. A
   press brings the viewer back. The title block over the viewer also lists the part's checks, each
-  opening its result, and a result on screen names the part it checked, a click away. A model a
+  opening its result, and a result on screen names the part it checked, a click away. Once that part is
+  built again (by an agent's turn, or because a view showed it after its script was edited outside
+  Studio: the view's sync names the new build, and the project's models are read again), the result
+  says "Part changed since this check" there; the engineering interface, which keeps no title
+  block, shows only that notice and the checked part, and only while it is due. A model a
   chat link or file chip names opens in the viewer, not as text.
 - **Hardware starters.** A new thread offers hardware jobs from `brand.json` `starters` ("Route
   this board", "Post G-code for grbl"), each only while an enabled plugin has the skill it needs
@@ -357,7 +361,9 @@ asked)`, or `by hand`; a decision written date first reads too), then every othe
   `<part>_drawing.pdf`. Each opens with a click.
 - **Import.** Studio scans the folders picked on this computer (Documents, Desktop and Downloads to
   start) for CAD models, drawings, parts lists, datasheets, photos and notes, and proposes a project
-  for each folder that holds models or drawings, imported where it is: Studio only reads them. Loose
+  for each folder that holds models or drawings, imported where it is: the scan only reads them, and
+  Studio then works in that folder, so changes the agent makes are made to the files there (the
+  scan's first step says so, `ImportDialog.tsx`). Loose
   files are placed in a project (copied into its folder) or left out; copies and older versions are
   listed and stay put. Import is on Home (files or a folder, or a scan), takes files dropped
   anywhere on Home, and offers the CAD files new in the scanned folders since the last scan; a
@@ -819,7 +825,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   the chat (`$fdm`, `$export`, `$board-fab`) and has its own cover on the Toolbox page, on its menu's
   shelf with the cover of the document it makes (Amy, 11/09: more skills, each triggered on its
   own). Each only hands off: it asks for its job as the tile does and sends the agent to the
-  text-to-cad skill that does it. Its files, `studio-job-skills/`, are written from the jobs
+  text-to-cad skill that does it. A tile says what it needs before its first use, where every job
+  behind it needs the same thing (`entryNeeds`: "Needs OrcaSlicer installed.", "Downloads its board
+  tools on first use, about 100 MB."). Its files, `studio-job-skills/`, are written from the jobs
   (`components/workbench/jobSkills.ts`; `STUDIO_WRITE_JOB_SKILLS=1` on `jobSkills.test.ts` writes
   them again after a job changes) and join text-to-cad's skills where Studio lays out its plugin,
   in dev (`TEXT_TO_CAD_DEV=1`) and in the app (`scripts/studio_job_skills.py`), never inside

@@ -339,7 +339,7 @@ export function newWorkPrompt(work: NewWork): string {
       return `Create a new sheet metal part as a CAD model in ${target}.py, in ${units}, with its flat pattern.${ask}`;
     // A board is KiCad's own files, the schematic and the board beside it, not a CAD model.
     case "board":
-      return `Create a new KiCad circuit board, ${target}.kicad_pcb, with its schematic beside it. Give its sizes in ${units}.${ask}`;
+      return `Create a new KiCad circuit board, ${target}.kicad_pcb, with its schematic beside it, its title block filled in (the board's name, date and revision). Give its sizes in ${units}.${ask}`;
     case "drawing":
       return `Make an engineering drawing of ${part} with its key dimensions and tolerances, in ${units}.${ask}`;
     case "strength-study":

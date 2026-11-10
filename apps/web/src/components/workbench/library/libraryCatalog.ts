@@ -448,6 +448,24 @@ const templatesBehind = (entry: LibraryDocument) =>
 const jobsBehind = (entry: LibraryDocument) =>
   entry.actions.flatMap((id) => HARDWARE_ACTIONS.filter((job) => job.id === id));
 
+/** The jobs behind an entry: a document type's, a job skill's one, or all a text-to-cad skill does. */
+function jobsOfEntry(entry: LibraryEntry): ReadonlyArray<HardwareAction> {
+  if (entry.kind === "document") return jobsBehind(entry);
+  if (entry.pluginId !== TEXT_TO_CAD) return [];
+  const job = jobOfSkill(entry.name);
+  return job === null ? HARDWARE_ACTIONS.filter((each) => each.skill === entry.name) : [job];
+}
+
+/**
+ * What an entry needs that Studio does not bring (`HardwareAction.needs`), for its tile to say
+ * before a press: said where every job behind it needs the same thing, in that job's own words.
+ */
+export function entryNeeds(entry: LibraryEntry): string | null {
+  const needs = new Set(jobsOfEntry(entry).map((job) => job.needs ?? null));
+  const [only] = needs;
+  return needs.size === 1 ? (only ?? null) : null;
+}
+
 /**
  * The skills that make a document type, by its templates and its jobs. A type with one lives inside
  * that skill's detail (Makes); only a type no skill makes gets a tile of its own.

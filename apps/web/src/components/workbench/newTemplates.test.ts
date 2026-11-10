@@ -119,7 +119,7 @@ describe("new templates", () => {
         description: "USB-C in, a 3.3 V regulator and one LED",
       }),
     ).toBe(
-      "Create a new KiCad circuit board, electronics/sensor_board.kicad_pcb, with its schematic beside it. Give its sizes in millimeters. USB-C in, a 3.3 V regulator and one LED.",
+      "Create a new KiCad circuit board, electronics/sensor_board.kicad_pcb, with its schematic beside it, its title block filled in (the board's name, date and revision). Give its sizes in millimeters. USB-C in, a 3.3 V regulator and one LED.",
     );
   });
 

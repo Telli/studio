@@ -312,7 +312,8 @@ function ImportDialog(props: {
               <DialogDescription>
                 Studio scans the folders you pick for engineering files: CAD models, drawings, parts
                 lists, datasheets and photos of parts. It groups them into projects. Your files stay
-                where they are.
+                where they are. Studio works in each project's own folder: changes the agent makes
+                are made to your files there.
               </DialogDescription>
             </DialogHeader>
             <DialogPanel>

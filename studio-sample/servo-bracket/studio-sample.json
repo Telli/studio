@@ -11,7 +11,10 @@
     "CNC",
     "3D print",
     "Drawing",
-    "Robot"
+    "Robot",
+    "Resin print",
+    "Metal print",
+    "Circuit board"
   ],
   "picture": "pictures/servo_mount_angle.png",
   "open": "parts/servo_bracket.py"
