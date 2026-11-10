@@ -4,21 +4,24 @@ import { type ReactNode, useMemo } from "react";
 
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
-import { CheckBadge } from "./CheckBadge";
+import { CheckBadge, OUT_OF_DATE, OutOfDateIcon } from "./CheckBadge";
 import { checkOutOfDate } from "./checkResults";
 import { shownChecks } from "./partChecks";
 import { buildLabel, materialLabel } from "./partLabels";
 import { partLabel } from "./partNames";
+import { shownResultOutOfDate } from "./shownResult";
 import { useEngineeringInterface, useEngineeringSurfaces } from "./studioInterface";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
+import { useProjectModels } from "./useFolderModels";
 import { usePartContext } from "./usePartContext";
-import { useProjectChecks } from "./useProjectChecks";
+import { type FolderChecks, useProjectChecks } from "./useProjectChecks";
 import { useStudioProjectAt } from "./useStudioProjects";
 
-/** A title block value's tone: a fact, one missing, or a failure. */
+/** A title block value's tone: a fact, one missing, a warning, or a failure. */
 export const TITLE_TONE = {
   default: "text-foreground",
   faint: "text-muted-foreground/70",
+  warning: "text-warning-foreground",
   error: "text-destructive",
 } as const;
 
@@ -27,7 +30,7 @@ export function TitleCell(props: {
   readonly label: string;
   readonly children: ReactNode;
   readonly className?: string;
-  readonly tone?: "default" | "faint" | "error";
+  readonly tone?: keyof typeof TITLE_TONE;
 }) {
   return (
     <div
@@ -62,7 +65,8 @@ interface TitleBlockProps {
 /**
  * The drawing's title block, over the viewer: the part on screen, its type,
  * units, material, last build and checks (each opening its result; a result
- * on screen leads back to its part), read the way a shop drawing reads. In the
+ * on screen leads back to its part, and says so when that part changed since:
+ * `ResultAge`), read the way a shop drawing reads. In the
  * engineering surfaces only (`useEngineeringSurfaces`), and only while the viewer shows a part of this plugin.
  */
 export function TitleBlock(props: TitleBlockProps) {
@@ -72,6 +76,35 @@ export function TitleBlock(props: TitleBlockProps) {
   const engineering = useEngineeringInterface();
   if (!surfaces || engineering) return null;
   return <ThreadTitleBlock {...props} />;
+}
+
+/**
+ * Beside a result's Checked part: that the part changed since the check, when it did
+ * (`shownResultOutOfDate`, read from the project's models as its Overview reads them). Nothing
+ * while that is not known.
+ */
+function ResultAge(props: {
+  readonly environmentId: EnvironmentId;
+  readonly folders: ReadonlyArray<string>;
+  readonly mutationId: string | null;
+  readonly checks: ReadonlyArray<FolderChecks>;
+  /** The result on screen, by its full path. */
+  readonly shown: string;
+}) {
+  const models = useProjectModels({
+    environmentId: props.environmentId,
+    folders: props.folders,
+    mutationId: props.mutationId,
+  });
+  if (!shownResultOutOfDate(props.checks, models, props.shown)) return null;
+  return (
+    <TitleCell label="Result" className="min-w-0 shrink" tone="warning">
+      <span className="flex min-w-0 items-center gap-1">
+        <OutOfDateIcon aria-hidden="true" className="size-3 shrink-0" />
+        <span className="truncate">{OUT_OF_DATE}</span>
+      </span>
+    </TitleCell>
+  );
 }
 
 function ThreadTitleBlock(props: TitleBlockProps) {
@@ -156,15 +189,24 @@ function ThreadTitleBlock(props: TitleBlockProps) {
           </TitleCell>
         ) : null}
         {about.of === null ? null : (
-          <TitleCell label="Checked part" className="min-w-0 shrink">
-            <button
-              type="button"
-              onClick={() => open(about.of!)}
-              className="truncate rounded-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-            >
-              {partLabel(about.of)}
-            </button>
-          </TitleCell>
+          <>
+            <TitleCell label="Checked part" className="min-w-0 shrink">
+              <button
+                type="button"
+                onClick={() => open(about.of!)}
+                className="truncate rounded-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              >
+                {partLabel(about.of)}
+              </button>
+            </TitleCell>
+            <ResultAge
+              environmentId={props.environmentId}
+              folders={folders}
+              mutationId={props.mutationId ?? null}
+              checks={checks}
+              shown={part.path}
+            />
+          </>
         )}
       </dl>
     </div>

@@ -2,7 +2,7 @@
 
 ## What it is
 
-A desk stand for a phone, printed in one piece in PLA on a Bambu Lab P1S: a sample project to learn Studio with. It holds a phone up to 80 mm wide and 12 mm thick in its case, leaning back at 65° from the desk, in portrait or landscape. The phone's back lies on the rest and its bottom edge on a ledge square to it, with an 8 mm lip in front. A charging cable's plug goes down through a slot in the ledge, and the cable runs along the base and out the back under the rest. It prints on its side with nothing to support, warps 0.317 mm off the plate, and stands a 1.05 N tap at the top of the screen with a 150 g phone in portrait before it tips.
+A desk stand for a phone, printed in one piece in PLA on a Bambu Lab P1S: an example project to learn Studio with. It holds a phone up to 80 mm wide and 12 mm thick in its case, leaning back at 65° from the desk, in portrait or landscape. The phone's back lies on the rest and its bottom edge on a ledge square to it, with an 8 mm lip in front. A charging cable's plug goes down through a slot in the ledge, and the cable runs along the base and out the back under the rest. It prints on its side with nothing to support, and stands a 1.05 N tap at the top of the screen with a 150 g phone in portrait before it tips.
 
 ## Decisions
 

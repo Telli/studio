@@ -1,8 +1,8 @@
-# Servo bracket (sample)
+# Servo bracket (example)
 
 ## What it is
 
-A mounting bracket for an MG996R servo, bent from 2 mm 5052-H32 aluminium sheet: a sample project to learn Studio with. The servo drops into the bracket's shelf horn up and is held by four M3 screws, and the bracket's flange fixes it to a wall with two M4 screws. A machined 6061-T6 adapter on the servo's output takes the load, and a printed PETG clip holds the servo's lead. It must hold 20 N at the servo horn, and its strength study passes with a safety factor of 3.73. The bracket is laser cut and bent by SendCutSend from its cut file.
+A mounting bracket for an MG996R servo, bent from 2 mm 5052-H32 aluminium sheet: an example project to learn Studio with. The servo drops into the bracket's shelf horn up and is held by four M3 screws, and the bracket's flange fixes it to a wall with two M4 screws. A machined 6061-T6 adapter on the servo's output takes the load, and a printed PETG clip holds the servo's lead. It must hold 20 N at the servo horn, and its strength study passes with a safety factor of 3.73. The bracket is laser cut and bent by SendCutSend from its cut file.
 
 ## Decisions
 

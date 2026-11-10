@@ -69,6 +69,14 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - the plugin's page;
   - the examples, finished projects (`studio-sample/<id>/`), which the Library's Examples section
     shows and Make a copy to edit copies into a new project (`T3CODE_SAMPLES_DIR`);
+  - the license notices kept as files (`licenses/`): T3 Code's, and on a Mac Electron's and
+    Chromium's, which electron-builder takes out of a Mac app and leaves beside `Studio.exe` on
+    Windows. The CAD tools' Python and its packages keep theirs where they are installed. Settings,
+    About, View licenses shows the CAD tools' own (Python, text-to-cad, build123d, OCP, Open
+    CASCADE, Netgen, CalculiX) from `third-party-licenses.config.json`, whose texts are in
+    `studio-licenses/`: copies from those packages as installed, except OCP's license and Open
+    CASCADE's exception, which their wheels leave out and which come from the projects' own
+    repositories;
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
   (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain
@@ -357,8 +365,10 @@ asked)`, or `by hand`; a decision written date first reads too), then every othe
   dropped on its Overview, copy what is picked into the project's folder, never over a file there
   (`importIntoProject.ts`). The desktop app reads and copies (`apps/desktop/src/studio/`); what
   makes a project is decided in the web (`components/workbench/importPlan.ts`).
-- **No usage data.** T3 Code's analytics are off and keyless in this build
-  (`apps/server/src/telemetry/AnalyticsService.ts`), so nothing about its use goes to T3.
+- **Usage data.** Nothing about its use goes to T3:
+  `apps/server/src/telemetry/AnalyticsService.ts` sends only Studio's own anonymous counts, to
+  Studio's receiver (`infra/usage`), once the person chose Share. The README's "Usage data" section
+  lists every count, and the plain downloads the app makes.
 - **Design history.** A turn that changed files ends with one line of what it changed in the
   design, a chip per part and document (a part's script, model, drawing and studies are one
   entry); a part's chip opens what changed in it at that turn, anything else opens beside the
