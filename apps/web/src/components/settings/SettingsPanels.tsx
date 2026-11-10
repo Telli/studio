@@ -3438,10 +3438,6 @@ export function GeneralSettingsPanel() {
                     version: APP_VERSION,
                     textToCadVersion: includedTextToCad,
                     platform: environment?.serverConfig?.environment.platform ?? null,
-                    usageId:
-                      settings.shareUsageData && settings.usageDataAnswered
-                        ? (environment?.serverConfig?.observability.usageId ?? null)
-                        : null,
                   })}
                   target="_blank"
                   rel="noreferrer noopener"

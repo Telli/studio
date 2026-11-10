@@ -55,7 +55,7 @@
     "example": "pictures/servo_mount_angle.png"
   },
   "doc:motion-video": {
-    "example": "pictures/servo_mount_motion.mp4"
+    "example": "assemblies/servo_mount.py"
   },
   "doc:test-plan": {
     "example": "docs/servo_mount_test_plan.md"

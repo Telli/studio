@@ -301,13 +301,13 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
   }),
   doc({
     id: "doc:motion-video",
-    name: "Motion video",
+    name: "Motion to play",
     templates: [],
-    actions: ["motion-video"],
-    what: "A video of an assembly moving through its range of motion.",
+    actions: ["play-motion"],
+    what: "An assembly moving through its range of motion, played in the viewer.",
     give: "The assembly, with the joints that move.",
     asks: null,
-    gets: "A short MP4 video, in pictures/.",
+    gets: "A motion in the assembly's model script, which the viewer's Motion plays.",
   }),
   doc({
     id: "doc:test-plan",

@@ -309,7 +309,7 @@ export function newWorkPrompt(work: NewWork): string {
   const target = `${folder}/${fileStem(work.name)}`;
   if (template.file !== undefined) {
     const word = /\.docx?$/i.test(template.file)
-      ? " It is a Word file: read its text first (on a Mac, `textutil -convert txt -stdout` on it)."
+      ? " It is a Word file: read its text first (on a Mac, `textutil -convert txt -stdout` on it; on Windows, a .docx is a zip with its text in word/document.xml)."
       : "";
     return `Write ${work.name.trim() || template.label} for this project as ${target}.md, following the template ${work.templateLink ?? template.file} section by section: its order, its headings, and its tables with their columns and row numbers.${word} ${FILL}${ask}`;
   }

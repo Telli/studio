@@ -9,7 +9,7 @@ import {
   TooltipRich,
   TooltipTrigger,
 } from "../ui/tooltip";
-import type { HardwareAction } from "./hardwareActions";
+import { jobLine, type HardwareAction } from "./hardwareActions";
 import type { ToolboxSection } from "./toolbox";
 import { GROUP_LABEL } from "./studioLayout";
 import { MENU_TINTS } from "./kinds";
@@ -95,11 +95,11 @@ function ToolTile(props: {
           {action.label}
         </span>
         <span id={describedBy} hidden>
-          {action.gets}
+          {jobLine(action)}
         </span>
       </TooltipTrigger>
       <TooltipPopup side="left">
-        <TooltipRich title={action.label} description={action.gets} />
+        <TooltipRich title={action.label} description={jobLine(action)} />
       </TooltipPopup>
     </Tooltip>
   );
