@@ -88,6 +88,7 @@ export const PROPERTIES = {
   "cad.size.added": [],
   "cad.versions.compared": [],
   "cad.version.restored": [],
+  "cad.action.failed": ["action"],
 };
 
 export const EVENTS = new Set(Object.keys(PROPERTIES));

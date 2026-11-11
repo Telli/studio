@@ -34,6 +34,7 @@ list differ):
 - `studio.project.created`
 - `cad.model.opened`, `cad.hand_edit`, `cad.size.changed`, `cad.size.added`,
   `cad.versions.compared`, `cad.version.restored`
+- `cad.action.failed`: one of those the CAD tools refused or could not do, named by which it was
 
 With each batch go the app's version, the platform (Mac or Windows), the chip type and the mode
 (desktop app or browser), and each event has a random id of its own and the time it was counted.

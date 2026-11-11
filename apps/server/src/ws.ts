@@ -2083,8 +2083,10 @@ const layerWsRpc = (
         [WS_METHODS.pluginsRequest]: (input) =>
           plugins.request(input).pipe(
             Effect.tap(({ result }) => {
-              const event = PluginUsageEvents.cadUsageEvent(input.method, input.params, result);
-              return event === null ? Effect.void : analytics.record(event).pipe(Effect.ignore);
+              const usage = PluginUsageEvents.cadUsageEvent(input.method, input.params, result);
+              return usage === null
+                ? Effect.void
+                : analytics.record(usage.event, usage.properties).pipe(Effect.ignore);
             }),
           ),
         [WS_METHODS.pluginsModelPictures]: (input) => plugins.modelPictures(input),
