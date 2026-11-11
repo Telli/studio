@@ -6,7 +6,6 @@
  *
  * Plain HTML and CSS, no script: it is drawn once per request and kept by nobody (`no-store`).
  */
-import { CAD_EVENTS } from "./cadtools.mjs";
 import { PROPERTIES } from "./events.mjs";
 
 /** Each event in plain words, as a person reads it. A test holds this to `PROPERTIES`. */
@@ -36,21 +35,8 @@ export const LABELS = {
   "cad.versions.compared": "Versions compared",
   "cad.version.restored": "Version restored",
   "cad.action.failed": "CAD action failed",
-  // The CAD tools' own counts: each row is one process's window of them, so "times" counts windows.
-  "cadtools.tool": "CAD tools: tool calls",
-  "cadtools.tool_failure": "CAD tools: tool call failed",
-  "cadtools.view": "CAD tools: view used",
-  "cadtools.files": "CAD tools: files shown",
-  "cadtools.build": "CAD tools: builds",
-  "cadtools.build_failure": "CAD tools: build failed",
-  "cadtools.snapshot": "CAD tools: snapshots",
-  "cadtools.snapshot_failure": "CAD tools: snapshot failed",
-  "cadtools.feature": "CAD tools: feature used",
-  "cadtools.health": "CAD tools: build workers",
-  "cadtools.control": "CAD tools: viewer control used",
-  "cadtools.exception": "CAD tools: crash",
 };
-export const EVENT_NAMES = [...Object.keys(PROPERTIES), ...CAD_EVENTS];
+export const EVENT_NAMES = Object.keys(PROPERTIES);
 
 /** The spans the page offers, in days; anything else asked for is the default. */
 export const SPANS = [7, 14, 30, 90];

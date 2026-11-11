@@ -51,26 +51,6 @@ With each batch go the app's version, the platform (Mac or Windows), the chip ty
 The receiver adds the country the request came from and keeps no address. What an event may carry
 beside its name is listed in [`infra/usage/src/events.mjs`](infra/usage/src/events.mjs).
 
-The CAD tools inside Studio (text-to-cad's) send the counts text-to-cad sends everywhere, under an
-install id of their own that nothing links to Studio's. Studio points them at the same receiver and
-turns them on and off with the same switch, so turning it off deletes theirs too, and a build without
-the receiver's address keeps them off. Each counts what one process saw in a few minutes, and none
-names a file, a path or anything typed. The receiver checks them by text-to-cad's own rules
-([`infra/usage/src/cad/events.mjs`](infra/usage/src/cad/events.mjs), a copy a test keeps the same):
-
-- `cadtools.tool`, `cadtools.tool_failure`: the CAD tools' calls, how many failed, and why, by a
-  word the tools chose
-- `cadtools.build`, `cadtools.build_failure`: builds by format (a model, STEP, STL and the rest), how
-  they ended and how long they took
-- `cadtools.snapshot`, `cadtools.snapshot_failure`: pictures of a model, the same way
-- `cadtools.view`, `cadtools.files`, `cadtools.control`: times a CAD view was used, files shown by
-  format, and which of the view's tools and settings were used (an export by its format, never a
-  value chosen)
-- `cadtools.feature`: assemblies, drawings, motion and the like, by name
-- `cadtools.health`: the build workers started, crashed or restarted
-- `cadtools.exception`: where the CAD tools' own code failed, by the error's type and the lines of
-  their code it ran through, never its message; your own code is a bare `<user>`
-
 Apart from these counts and its check for a newer Studio (on GitHub), the app makes a few plain
 downloads, and no id goes with any of them: the list of AI models from
 [T3 Code](https://github.com/pingdotgg/t3code) on GitHub (at most once an hour),

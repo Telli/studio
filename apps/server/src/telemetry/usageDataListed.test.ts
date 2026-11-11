@@ -31,11 +31,7 @@ function recordedEvents(): ReadonlyArray<string> {
 function listedEvents(): ReadonlyArray<string> {
   const readme = NodeFS.readFileSync(README, "utf8");
   const section = readme.split("## Usage data")[1]?.split(/\n---\n|\n## /u)[0] ?? "";
-  // The CAD tools' own counts (`cadtools.*`) are sent by text-to-cad, not this server: the receiver's
-  // test (`infra/usage/src/events.test.mjs`) holds their list to the rules it checks them by.
-  return [...section.matchAll(/`([a-z]+(?:\.[a-z_]+)+)`/gu)]
-    .map((found) => found[1] ?? "")
-    .filter((name) => !name.startsWith("cadtools."));
+  return [...section.matchAll(/`([a-z]+(?:\.[a-z_]+)+)`/gu)].map((found) => found[1] ?? "");
 }
 
 const matches = (pattern: string, name: string) =>

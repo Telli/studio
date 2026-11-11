@@ -3407,7 +3407,7 @@ export function GeneralSettingsPanel() {
             serverScoped
             settingKeys={["shareUsageData"]}
             {...searchableSetting("usage-data")}
-            description="Send anonymous counts of which features get used and what fails, the CAD tools' included. Never prompts, file names or designs. Turning it off deletes what was sent."
+            description="Send anonymous counts of which features get used and how often. Never prompts, file names or designs. Turning it off deletes what was sent."
             control={
               <ScopedSwitch
                 settingKeys={["shareUsageData"]}

@@ -25,21 +25,14 @@ export const STUDIO_DEV_ENGINE_PORT = 3346;
  * - `CAD_LAUNCHER_DIR`: where its `cad` command is written (`<home>/bin`), which its agents'
  *   skills run (`studioPath` puts it first on their PATH);
  * - `CAD_INSTALL_CHANNEL`: `dev`, which keeps the CAD tools' update notices and telemetry off from
- *   the very first `cad` command, before any MCP session has written the channel down;
- * - `CAD_API_URL`: in a build with Studio's usage receiver, that receiver's `/v1/cad`, where the CAD
- *   tools send their own counts once Studio's switch turns them on (the server's `CadToolsUsage`);
- *   in any other build `CAD_TELEMETRY=0` instead, so no `cad` that Studio starts ever sends them.
+ *   the very first `cad` command, before any MCP session has written the channel down.
  *
  * The folder is `cad`, not 0.8's `cadgen`: a 0.8 installation's record never stands for 0.10's.
  * The agents Studio runs inherit these, so every `cad` they run is Studio's installation on
  * Studio's server.
  */
-export function studioEngineEnv(
-  home: string,
-  options: { readonly dev: boolean; readonly usageUrl?: string | undefined },
-) {
+export function studioEngineEnv(home: string, options: { readonly dev: boolean }) {
   const cad = NodePath.join(home, "cad");
-  const usageUrl = options.usageUrl?.trim().replace(/\/+$/, "") ?? "";
   return {
     CAD_STATE_DIR: NodePath.join(cad, "state"),
     CAD_CACHE_DIR: NodePath.join(cad, "cache"),
@@ -47,7 +40,6 @@ export function studioEngineEnv(
     CAD_ENGINE_PORT: String(options.dev ? STUDIO_DEV_ENGINE_PORT : STUDIO_ENGINE_PORT),
     CAD_LAUNCHER_DIR: NodePath.join(home, "bin"),
     CAD_INSTALL_CHANNEL: "dev",
-    ...(usageUrl === "" ? { CAD_TELEMETRY: "0" } : { CAD_API_URL: `${usageUrl}/v1/cad` }),
   };
 }
 

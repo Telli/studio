@@ -68,9 +68,7 @@ export function applyStudioAppBundle(input: {
   setDefault(env, "T3CODE_DEFAULT_PLUGINS", settings.plugins.join(","));
   // A build made with a usage receiver sends anonymous usage counts there, which Settings can turn off.
   if (settings.usageUrl !== undefined) setDefault(env, "T3CODE_USAGE_URL", settings.usageUrl);
-  for (const [name, value] of Object.entries(
-    studioEngineEnv(home, { dev: false, usageUrl: settings.usageUrl }),
-  )) {
+  for (const [name, value] of Object.entries(studioEngineEnv(home, { dev: false }))) {
     setDefault(env, name, value);
   }
   env.PATH = studioPath(env.CAD_LAUNCHER_DIR!, env.PATH);
