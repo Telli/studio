@@ -17,9 +17,9 @@ licensed.
 The app counts which features get used, anonymously, so we can see what works: chats started,
 turns finished (provider, model, token counts, how long), projects made from a starter, and CAD
 actions such as opening a model, a hand edit, changing a size or comparing versions. It never
-sends your prompts, file names or designs. It works the way text-to-cad's own counts do. Nothing
-is sent until you choose Share when the first launch asks, and **Settings → About → Share usage data** turns it
-off and deletes what was sent. Setting `DO_NOT_TRACK=1` turns it off for the whole machine, and a
+sends your prompts, file names or designs. It works the way text-to-cad's own counts do: it is on
+once the first launch has told you, nothing counted before that is sent, and **Turn off** on that notice or
+**Settings → About → Share usage data** turns it off and deletes what was sent. A no you gave before stays a no. Setting `DO_NOT_TRACK=1` turns it off for the whole machine, and a
 CI run (`CI` set) sends nothing. Counts go under a random install id to Studio's own receiver,
 [`infra/usage`](infra/usage/README.md), which refuses anything outside this list and keeps the
 rest in Studio's own database, not an analytics service; a build sends nothing unless it was made with the receiver's address, so a copy

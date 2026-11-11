@@ -222,7 +222,7 @@ ${figure(summary.projects, "projects made")}
 <h2>What got used</h2>
 ${features}
 ${daysList ? `<h2>Day by day</h2>${daysList}` : ""}
-<footer>Only installs whose person pressed Share on the first-launch notice are counted, and Settings, About turns it off and deletes what was sent. Studio (Dev) and copies built without the receiver's address send nothing. An install is one copy of Studio on one computer, under a random id this page never shows.</footer>
+<footer>Counts are on once the first-launch notice has told the person, unless they turn them off there or in Settings, About, which deletes what was sent. Before Studio 0.1.10 only installs whose person pressed Share were counted. Studio (Dev) and copies built without the receiver's address send nothing. An install is one copy of Studio on one computer, under a random id this page never shows.</footer>
 </main>
 </body>
 </html>`;
