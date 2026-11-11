@@ -39,7 +39,7 @@ export function UsageDataNotice() {
     const id = toastManager.add({
       title: `${APP_BASE_NAME} shares anonymous usage counts`,
       description:
-        "Which features get used and how often, to see what works. Never your prompts, file names or designs. Turn it off here or in Settings → About, which also deletes what was sent.",
+        "Counts of which features get used and what fails, to decide what to fix and build next. Never your prompts, file names or designs. Turn it off here or in Settings → About, which also deletes what was sent.",
       timeout: 0,
       actionProps: { children: "OK", onClick: () => toastManager.close(id) },
       data: {
