@@ -31,7 +31,10 @@ list differ):
 - `provider.turn.completed`
 - `chatgpt.auth.started`, `chatgpt.auth.completed`, `chatgpt.transfer.started`,
   `chatgpt.transfer.completed`
-- `studio.project.created`
+- `studio.project.created`, `studio.project.trashed`, `studio.project.restored`,
+  `studio.project.deleted`
+- `studio.sync.sent` (sent, nothing new to send, or failed), `studio.sync.restored` (a backup
+  brought back, or failed), `studio.github.connected`
 - `cad.model.opened`, `cad.hand_edit`, `cad.size.changed`, `cad.size.added`,
   `cad.versions.compared`, `cad.version.restored`
 - `cad.action.failed`: one of those the CAD tools refused or could not do, named by which it was

@@ -2105,9 +2105,29 @@ const layerWsRpc = (
                 .pipe(Effect.ignore);
             }),
           ),
-        [WS_METHODS.studioProjectsTrash]: (input) => studioProjects[input.action](input.id),
+        [WS_METHODS.studioProjectsTrash]: (input) =>
+          studioProjects[input.action](input.id).pipe(
+            // Moving a project to Trash, back, or out for good counts by the action alone.
+            Effect.tap(() =>
+              (input.action === "trash"
+                ? analytics.record("studio.project.trashed")
+                : input.action === "restore"
+                  ? analytics.record("studio.project.restored")
+                  : analytics.record("studio.project.deleted")
+              ).pipe(Effect.ignore),
+            ),
+          ),
         [WS_METHODS.studioSyncSend]: (input) =>
           studioSync.send(input).pipe(
+            // A Sync counts by how it ended, never by the project or its online copy.
+            Effect.tap((result) =>
+              analytics
+                .record("studio.sync.sent", { outcome: result.sent ? "sent" : "unchanged" })
+                .pipe(Effect.ignore),
+            ),
+            Effect.tapError(() =>
+              analytics.record("studio.sync.sent", { outcome: "failed" }).pipe(Effect.ignore),
+            ),
             // A failed first send can still have linked the online copy, so both ways refresh.
             Effect.ensuring(
               repositoryIdentityResolver
@@ -2116,10 +2136,26 @@ const layerWsRpc = (
             ),
           ),
         [WS_METHODS.studioSyncRestore]: (input) =>
-          studioSync.restore({ ...input, root: managedFolders.namedProjectsRoot }),
+          studioSync.restore({ ...input, root: managedFolders.namedProjectsRoot }).pipe(
+            Effect.tap(() =>
+              analytics.record("studio.sync.restored", { outcome: "restored" }).pipe(Effect.ignore),
+            ),
+            Effect.tapError(() =>
+              analytics.record("studio.sync.restored", { outcome: "failed" }).pipe(Effect.ignore),
+            ),
+          ),
         [WS_METHODS.studioSyncStatus]: (input) => studioSync.status(input),
         [WS_METHODS.studioGitHubSignInStart]: () => studioGitHubSignIn.start,
-        [WS_METHODS.studioGitHubSignInCheck]: (input) => studioGitHubSignIn.check(input),
+        [WS_METHODS.studioGitHubSignInCheck]: (input) =>
+          studioGitHubSignIn
+            .check(input)
+            .pipe(
+              Effect.tap(({ state }) =>
+                state === "signed-in"
+                  ? analytics.record("studio.github.connected").pipe(Effect.ignore)
+                  : Effect.void,
+              ),
+            ),
         [WS_METHODS.serverUpdateProvider]: (input) =>
           providerMaintenanceRunner.updateProvider(input),
         [WS_METHODS.providerConsumeResetCredit]: (input) =>
