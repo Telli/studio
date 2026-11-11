@@ -8,6 +8,9 @@
  *                              (limit.mjs)
  *   POST   /v1/forget          {install}: forget everything sent under an install id -> 204, or 429 past
  *                              the limit per address and per install id (limit.mjs)
+ *   POST   /v1/cad/events      a batch of the CAD tools' own counts (cadtools.mjs, by text-to-cad's rules)
+ *                              -> 204, or 429 past the limit per address
+ *   POST   /v1/cad/forget      {install}: as /v1/forget, for the CAD tools' install id
  *   GET    /v1/health          -> 200, or 503 naming a missing setting (store.mjs: SETTINGS)
  *                              or the database's status when it will not answer
  *   GET    /?days=30           the numbers page (page.mjs), behind the NUMBERS_PASSWORD password the
@@ -19,6 +22,7 @@
  */
 import * as NodeCrypto from "node:crypto";
 
+import { cadToolsRowsOf } from "./cadtools.mjs";
 import { Invalid, isUuid, MAX_BYTES, rowsOf } from "./events.mjs";
 import { pageOf, sinceOf, spanOf } from "./page.mjs";
 
@@ -82,7 +86,7 @@ export function reasonOf(message) {
   );
   return KEPT_MESSAGE.test(reason) ? reason : "invalid";
 }
-const ENDPOINTS = new Set(["/v1/events", "/v1/forget"]);
+const ENDPOINTS = new Set(["/v1/events", "/v1/forget", "/v1/cad/events", "/v1/cad/forget"]);
 const refuse = (status, path, reason) => {
   console.warn(`usage ${ENDPOINTS.has(path) ? path : "request"} refused ${status}: ${reason}`);
   return reply(status, { error: reason });
@@ -174,18 +178,29 @@ export async function handle(
       }
     }
     // Anyone can post a batch and each one adds rows, so an address may send only so many a minute.
-    if (path === "/v1/events" && request.method === "POST") {
+    const placed = { country: COUNTRY.test(country ?? "") ? country : null };
+    if ((path === "/v1/events" || path === "/v1/cad/events") && request.method === "POST") {
       if (eventsLimiter && client) {
         const refused = limited(eventsLimiter, `address ${client}`);
         if (refused) return refused;
       }
-      const rows = rowsOf(await json(request));
-      await store.insert(rows, { country: COUNTRY.test(country ?? "") ? country : null });
+      const batch = await json(request);
+      if (path === "/v1/events") {
+        await store.insert(rowsOf(batch), placed);
+        return reply(204);
+      }
+      // Crashes that are never text-to-cad's bug go no further, counted in one line by name.
+      const { rows, dropped } = cadToolsRowsOf(batch, now);
+      if (dropped.size) {
+        console.info(`usage dropped ${[...dropped].map(([name, n]) => `${name} ${n}`).join(", ")}`);
+      }
+      if (rows.length) await store.insert(rows, placed);
       return reply(204);
     }
     // The id rides in the body, never the path: the host's request logs keep each path beside the
     // caller's IP address. Each deletion spends the personal key, so a caller may ask only so often.
-    if (path === "/v1/forget" && request.method === "POST") {
+    // The CAD tools' install id is deleted the same way: its rows are Studio's table's too.
+    if ((path === "/v1/forget" || path === "/v1/cad/forget") && request.method === "POST") {
       if (limiter && client) {
         const refused = limited(limiter, `address ${client}`);
         if (refused) return refused;

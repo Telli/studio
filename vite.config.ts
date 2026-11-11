@@ -87,6 +87,8 @@ export default defineConfig({
       // text-to-cad (Jake's CAD harness, the studio-base submodule) keeps its own formatting, so his
       // updates still merge.
       "text-to-cad/**",
+      // The usage receiver's copy of text-to-cad's receiver rules, kept byte for byte as Jake wrote them.
+      "infra/usage/src/cad/**",
       // The sample project holds the skills' own output, kept as they wrote it.
       "studio-sample/**",
       // Macroscope's glob-per-line ignore grammar, not Markdown: formatting
@@ -119,6 +121,7 @@ export default defineConfig({
       ".repos",
       ".repos/**",
       "text-to-cad/**",
+      "infra/usage/src/cad/**",
       "dist",
       "dist-electron",
       "node_modules",

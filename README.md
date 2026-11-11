@@ -27,14 +27,19 @@ you build yourself sends nothing. [`AnalyticsService.ts`](apps/server/src/teleme
 sends them, and this is every event it can send (tests fail when the code, the receiver and this
 list differ):
 
-- `client.connected`, `client.thread.started`, `client.turn.requested`
+- `client.connected`, `client.thread.started` (with the kind of AI it starts with: Claude, Codex and
+  the rest), `client.turn.requested`
 - `provider.turn.completed`
 - `chatgpt.auth.started`, `chatgpt.auth.completed`, `chatgpt.transfer.started`,
   `chatgpt.transfer.completed`
 - `claude.signed_in`: Claude went from signed out to signed in (a launch that finds it already
   signed in is not counted)
-- `studio.project.created`, `studio.project.trashed`, `studio.project.restored`,
-  `studio.project.deleted`
+- `studio.updated`: a launch of another release than the one that ran last, with both versions
+- `studio.skill.used`: a skill or job a message asked for, from a Toolbox tile, a job menu or typed
+  by name (`$fdm`), named from Studio's own list of jobs and text-to-cad's skills, so a skill you
+  added yourself is never named
+- `studio.project.created` (by its starter, and whether it was made, imported, restored from a
+  backup or copied), `studio.project.trashed`, `studio.project.restored`, `studio.project.deleted`
 - `studio.sync.sent` (sent, nothing new to send, or failed), `studio.sync.restored` (a backup
   brought back, or failed), `studio.github.connected`
 - `cad.model.opened`, `cad.hand_edit`, `cad.size.changed`, `cad.size.added`,
@@ -45,6 +50,26 @@ With each batch go the app's version, the platform (Mac or Windows), the chip ty
 (desktop app or browser), and each event has a random id of its own and the time it was counted.
 The receiver adds the country the request came from and keeps no address. What an event may carry
 beside its name is listed in [`infra/usage/src/events.mjs`](infra/usage/src/events.mjs).
+
+The CAD tools inside Studio (text-to-cad's) send the counts text-to-cad sends everywhere, under an
+install id of their own that nothing links to Studio's. Studio points them at the same receiver and
+turns them on and off with the same switch, so turning it off deletes theirs too, and a build without
+the receiver's address keeps them off. Each counts what one process saw in a few minutes, and none
+names a file, a path or anything typed. The receiver checks them by text-to-cad's own rules
+([`infra/usage/src/cad/events.mjs`](infra/usage/src/cad/events.mjs), a copy a test keeps the same):
+
+- `cadtools.tool`, `cadtools.tool_failure`: the CAD tools' calls, how many failed, and why, by a
+  word the tools chose
+- `cadtools.build`, `cadtools.build_failure`: builds by format (a model, STEP, STL and the rest), how
+  they ended and how long they took
+- `cadtools.snapshot`, `cadtools.snapshot_failure`: pictures of a model, the same way
+- `cadtools.view`, `cadtools.files`, `cadtools.control`: times a CAD view was used, files shown by
+  format, and which of the view's tools and settings were used (an export by its format, never a
+  value chosen)
+- `cadtools.feature`: assemblies, drawings, motion and the like, by name
+- `cadtools.health`: the build workers started, crashed or restarted
+- `cadtools.exception`: where the CAD tools' own code failed, by the error's type and the lines of
+  their code it ran through, never its message; your own code is a bare `<user>`
 
 Apart from these counts and its check for a newer Studio (on GitHub), the app makes a few plain
 downloads, and no id goes with any of them: the list of AI models from

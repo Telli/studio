@@ -20,10 +20,12 @@ create index if not exists usage_events_at on public.usage_events (at);
 -- Only the receiver's service role key reaches the table: row-level security on, and no policy for anyone else.
 alter table public.usage_events enable row level security;
 
--- How many installs used Studio each day (a chat turn, a CAD action or opening the app counts).
+-- How many installs used Studio each day (a chat turn, a CAD action or opening the app counts). The CAD tools'
+-- own counts (`cadtools.*`) go under an install id of their own, so they are left out: each Studio is counted once.
 create or replace view public.usage_daily_installs with (security_invoker = true) as
   select date_trunc('day', at)::date as day, count(distinct install) as installs
   from public.usage_events
+  where event not like 'cadtools.%'
   group by 1
   order by 1 desc;
 

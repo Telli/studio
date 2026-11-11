@@ -2,6 +2,7 @@ import * as NodeAssert from "node:assert/strict";
 import * as NodeFS from "node:fs";
 import * as NodeTest from "node:test";
 
+import { CAD_EVENTS } from "./cadtools.mjs";
 import { EVENTS, Invalid, PROPERTIES, rowsOf } from "./events.mjs";
 import { batchOf } from "./fixtures.mjs";
 
@@ -53,7 +54,7 @@ NodeTest.test("knows exactly the events README.md lists", () => {
   const readme = NodeFS.readFileSync(new URL("../../../README.md", import.meta.url), "utf8");
   const section = readme.split("## Usage data")[1]?.split(/\n---\n|\n## /u)[0] ?? "";
   const listed = [...section.matchAll(/`([a-z]+(?:\.[a-z_]+)+)`/gu)].map((found) => found[1]);
-  NodeAssert.deepEqual([...EVENTS].toSorted(), listed.toSorted());
+  NodeAssert.deepEqual([...EVENTS, ...CAD_EVENTS].toSorted(), listed.toSorted());
 });
 
 NodeTest.test("refuses a short word under a name the event does not carry", () => {

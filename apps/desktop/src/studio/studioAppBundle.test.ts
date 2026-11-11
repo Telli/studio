@@ -84,6 +84,19 @@ describe("studioEngineEnv", () => {
     expect(dev.CAD_ENGINE_PORT).toBe(String(STUDIO_DEV_ENGINE_PORT));
     expect(release.CAD_ENGINE_PORT).not.toBe(dev.CAD_ENGINE_PORT);
   });
+
+  it("sends the CAD tools' own counts only to Studio's receiver, and keeps them off without one", () => {
+    const home = "/Users/a/.text-to-cad-studio";
+    const sending = studioEngineEnv(home, { dev: false, usageUrl: "https://usage.example/" });
+    expect(sending).toMatchObject({ CAD_API_URL: "https://usage.example/v1/cad" });
+    expect(sending).not.toHaveProperty("CAD_TELEMETRY");
+    // No receiver (a build from source): never text-to-cad's own receiver either.
+    for (const usageUrl of [undefined, "", "  "]) {
+      const off = studioEngineEnv(home, { dev: false, usageUrl });
+      expect(off).toMatchObject({ CAD_TELEMETRY: "0" });
+      expect(off).not.toHaveProperty("CAD_API_URL");
+    }
+  });
 });
 
 describe("checkoutEngineEnv", () => {
