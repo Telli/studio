@@ -29,6 +29,7 @@ import * as Schema from "effect/Schema";
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@t3tools/shared/model";
 import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
+import { turnFailureReason } from "../telemetry/TurnFailure.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
@@ -78,6 +79,8 @@ export interface ProviderTurnAnalyticsContext {
 
 export class ProviderTurnAnalytics extends Context.Reference<{
   readonly record: (properties: Readonly<Record<string, unknown>>) => Effect.Effect<void>;
+  /** Studio: why a turn failed, as one word from a closed list. */
+  readonly recordFailure?: (properties: Readonly<Record<string, unknown>>) => Effect.Effect<void>;
 }>("t3/orchestration-v2/ProviderTurnAnalytics", {
   defaultValue: () => ({ record: () => Effect.void }),
 }) {}
@@ -89,6 +92,8 @@ export const layerAnalytics = Layer.effect(
     return {
       record: (properties: Readonly<Record<string, unknown>>) =>
         analytics.record("provider.turn.completed", properties),
+      recordFailure: (properties: Readonly<Record<string, unknown>>) =>
+        analytics.record("provider.turn.failed", properties),
     };
   }),
 );
@@ -791,6 +796,21 @@ export const layer: Layer.Layer<
           ),
           Effect.tap((storedEvents) =>
             Effect.gen(function* () {
+              if (
+                storedEvents.length > 0 &&
+                input.event.type === "turn.terminal" &&
+                input.event.status === "failed" &&
+                analytics.recordFailure !== undefined
+              ) {
+                const key = `failed:${input.providerInstanceId}:${input.event.providerTurnId}`;
+                if (completedTurnAnalytics.has(key)) return;
+                completedTurnAnalytics.add(key);
+                yield* analytics.recordFailure({
+                  provider: input.event.driver,
+                  reason: turnFailureReason(input.event.failure),
+                });
+                return;
+              }
               if (storedEvents.length === 0 || input.event.type !== "provider_turn.updated") return;
               const providerTurn = input.event.providerTurn;
               if (

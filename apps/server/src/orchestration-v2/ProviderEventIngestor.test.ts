@@ -241,6 +241,58 @@ it.effect("records accepted billed turn usage once without billing the context w
   }).pipe(Effect.provide(layerTest.pipe(Layer.provide(layerAnalytics))));
 });
 
+it.effect("records one listed reason when a turn fails, never the provider's words", () => {
+  const failures: Array<Readonly<Record<string, unknown>>> = [];
+  const layerAnalytics = Layer.succeed(ProviderEventIngestor.ProviderTurnAnalytics, {
+    record: () => Effect.void,
+    recordFailure: (properties: Readonly<Record<string, unknown>>) =>
+      Effect.sync(() => {
+        failures.push(properties);
+      }),
+  });
+  return Effect.gen(function* () {
+    const now = yield* DateTime.now;
+    const eventSink = yield* EventSink.EventSinkV2;
+    const ingestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
+    const idAllocator = yield* IdAllocator.IdAllocatorV2;
+    const threadEvent = yield* threadCreatedEvent(now);
+    yield* eventSink.write({ events: [threadEvent] });
+    const providerSessionId = yield* idAllocator.allocate.providerSession({
+      providerInstanceId: modelSelection.instanceId,
+      threadId: threadEvent.threadId,
+    });
+    const input = {
+      providerSessionId,
+      providerInstanceId: modelSelection.instanceId,
+      threadId: threadEvent.threadId,
+      event: {
+        type: "turn.terminal" as const,
+        driver: CODEX_DRIVER,
+        providerThreadId: idAllocator.derive.providerThread({
+          driver: CODEX_DRIVER,
+          nativeThreadId: "failed-thread",
+        }),
+        providerTurnId: idAllocator.derive.providerTurn({
+          driver: CODEX_DRIVER,
+          nativeTurnId: "failed-turn",
+        }),
+        runOrdinal: 1,
+        failureItemOrdinal: 1,
+        status: "failed" as const,
+        failure: makeProviderFailure({
+          class: "provider_error",
+          code: "api_error_401",
+          message: "Invalid API key for /Users/someone/bracket.py",
+        }),
+        threadDisposition: "reusable" as const,
+      },
+    };
+    yield* ingestor.ingestNormalized(input);
+    yield* ingestor.ingestNormalized(input);
+    assert.deepEqual(failures, [{ provider: CODEX_DRIVER, reason: "sign_in" }]);
+  }).pipe(Effect.provide(layerTest.pipe(Layer.provide(layerAnalytics))));
+});
+
 layer("ProviderEventIngestorV2", (it) => {
   it.effect("normalizes provider events through the real event log and projection store", () =>
     Effect.gen(function* () {

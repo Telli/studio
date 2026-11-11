@@ -90,8 +90,10 @@ export function databaseStore({ url, key }, { fetch: send = fetch, now = Date.no
       });
     },
     // The numbers page's rows (page.mjs) from `since` (`YYYY-MM-DD`) on: the two daily views; how many AI
-    // turns failed, counted by the database; and which version each launch ran (`client.connected`), the
-    // version and install id alone, read a page at a time since the database answers 1000 rows a call.
+    // turns failed, counted by the database, and the failed turns themselves (the AI, the model or the
+    // reason, with the install id, the first 1000 of each); and which version each launch ran
+    // (`client.connected`), the version and install id alone, read a page at a time since the database
+    // answers 1000 rows a call.
     async numbers(since) {
       const view = (name, order) =>
         call(`${url}/rest/v1/${name}?day=gte.${since}&order=${order}`).then((answer) =>
@@ -101,6 +103,18 @@ export function databaseStore({ url, key }, { fetch: send = fetch, now = Date.no
         `${rest}?select=id&event=eq.provider.turn.completed&properties->>terminalStatus=eq.failed&at=gte.${since}`,
         { method: "HEAD", headers: { prefer: "count=exact" } },
       ).then((answer) => Number(answer.headers.get("content-range")?.split("/")[1] ?? 0));
+      const failedRows = (query) =>
+        call(`${rest}?${query}&at=gte.${since}&order=id&limit=${PAGE_ROWS}`).then((answer) =>
+          answer.json(),
+        );
+      const failures = Promise.all([
+        failedRows(
+          "select=install,provider:properties->>provider,model:properties->>model&event=eq.provider.turn.completed&properties->>terminalStatus=eq.failed",
+        ),
+        failedRows(
+          "select=install,provider:properties->>provider,reason:properties->>reason&event=eq.provider.turn.failed",
+        ),
+      ]).then(([turns, reasons]) => ({ turns, reasons }));
       const launches = async () => {
         const rows = [];
         for (let page = 0; page < LAUNCH_PAGES; page += 1) {
@@ -113,13 +127,14 @@ export function databaseStore({ url, key }, { fetch: send = fetch, now = Date.no
         }
         return { rows, complete: false };
       };
-      const [installs, events, failed, versions] = await Promise.all([
+      const [installs, events, failed, failedWhy, versions] = await Promise.all([
         view("usage_daily_installs", "day.desc"),
         view("usage_daily_events", "day.desc,times.desc"),
         failedTurns,
+        failures,
         launches(),
       ]);
-      return { installs, events, failedTurns: failed, launches: versions };
+      return { installs, events, failedTurns: failed, failures: failedWhy, launches: versions };
     },
     // Health's question: the table is there and answers to the key. Kept, failure or not, for READY_TTL_MS.
     ready() {
