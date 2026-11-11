@@ -81,6 +81,7 @@ export const PROPERTIES = {
   "chatgpt.auth.completed": CHATGPT_DONE,
   "chatgpt.transfer.started": CHATGPT,
   "chatgpt.transfer.completed": CHATGPT_DONE,
+  "claude.signed_in": [],
   "studio.project.created": ["template"],
   "studio.project.trashed": [],
   "studio.project.restored": [],

@@ -18,6 +18,7 @@ export const LABELS = {
   "chatgpt.auth.completed": "ChatGPT sign-in finished",
   "chatgpt.transfer.started": "ChatGPT transfer started",
   "chatgpt.transfer.completed": "ChatGPT transfer finished",
+  "claude.signed_in": "Signed in to Claude",
   "studio.project.created": "Project made",
   "studio.project.trashed": "Project moved to Trash",
   "studio.project.restored": "Project back from Trash",

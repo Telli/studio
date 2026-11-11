@@ -31,6 +31,8 @@ list differ):
 - `provider.turn.completed`
 - `chatgpt.auth.started`, `chatgpt.auth.completed`, `chatgpt.transfer.started`,
   `chatgpt.transfer.completed`
+- `claude.signed_in`: Claude went from signed out to signed in (a launch that finds it already
+  signed in is not counted)
 - `studio.project.created`, `studio.project.trashed`, `studio.project.restored`,
   `studio.project.deleted`
 - `studio.sync.sent` (sent, nothing new to send, or failed), `studio.sync.restored` (a backup
